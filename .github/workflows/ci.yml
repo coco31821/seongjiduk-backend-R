@@ -1,0 +1,27 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+      - main
+
+jobs:
+  repository-check:
+    name: Repository check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify backend workspace
+        run: |
+          test -f README.md
+          test -f .env.example
+          test -d src
+          test -d ai-service
+          test -d infra
