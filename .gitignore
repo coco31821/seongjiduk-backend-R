@@ -2,6 +2,10 @@
 .idea/
 .vscode/
 
+# Local AI agent instructions
+CLAUDE.md
+AGENTS.md
+
 .env
 .env.*
 !.env.example
