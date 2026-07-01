@@ -1,0 +1,70 @@
+### Health
+GET http://localhost:8080/api/health
+
+### Signup
+POST http://localhost:8080/api/auth/signup
+Content-Type: application/json
+
+{
+  "email": "fan@example.com",
+  "password": "password1234",
+  "nickname": "muse_fan"
+}
+
+### Login
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "fan@example.com",
+  "password": "password1234"
+}
+
+### Contents
+GET http://localhost:8080/api/contents
+
+### Content spots
+GET http://localhost:8080/api/contents/1/spots
+
+### Spot detail
+GET http://localhost:8080/api/spots/1
+
+### Generate trip
+POST http://localhost:8080/api/trips/generate
+Content-Type: application/json
+
+{
+  "contentId": 1,
+  "durationDays": 3,
+  "budgetLevel": "NORMAL",
+  "startLocation": "Tokyo Station",
+  "travelStyle": "PILGRIMAGE_ONLY",
+  "selectedSpotIds": [1, 2, 3],
+  "excludedSpotIds": []
+}
+
+### Save trip
+POST http://localhost:8080/api/trips/10/save
+Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ=
+
+### My trips
+GET http://localhost:8080/api/trips
+Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ=
+
+### Create visit
+POST http://localhost:8080/api/visits
+Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ=
+Content-Type: application/json
+
+{
+  "spotId": 1,
+  "memo": "첫 성지 인증",
+  "photoUrl": "https://example.com/photo.jpg"
+}
+
+### Booking links
+GET http://localhost:8080/api/booking-links?city=Tokyo&startDate=2026-07-10&endDate=2026-07-12
+
+### Admin overview
+GET http://localhost:8080/api/admin/stats/overview
+Authorization: Basic YWRtaW46YWRtaW4xMjM0

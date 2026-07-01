@@ -72,6 +72,17 @@ docker compose -f infra/docker/docker-compose.local.yml --env-file .env up --bui
 2. `src/main/java/com/sungjiduk/backend/{domain}`에 최소 구현을 추가합니다.
 3. `./gradlew test`로 전체 테스트를 통과시킨 뒤 커밋합니다.
 
+## API 호출 예시
+
+기본 호출 형태는 `docs/API_CALL_EXAMPLES.http`에서 확인합니다.
+
+현재 API는 병렬 개발 시작을 위한 mock 응답 기반 골격입니다. 실제 구현 시 각 도메인 `Service`의 mock 데이터를 `Repository` 호출과 비즈니스 로직으로 교체합니다.
+
+초기 개발용 Basic Auth 계정:
+
+- USER: `user` / `password1234`
+- ADMIN: `admin` / `admin1234`
+
 ## CI/CD 상태
 
 - `Backend CI`: Gradle test, backend Docker build, ai-service Docker build
