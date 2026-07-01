@@ -1,0 +1,57 @@
+name: seongjiduk-local
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: seongjiduk-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-seongjiduk}
+      POSTGRES_USER: ${POSTGRES_USER:-seongjiduk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seongjiduk-local-password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - seongjiduk
+
+  ai-service:
+    build:
+      context: ../../ai-service
+    container_name: seongjiduk-ai-service
+    ports:
+      - "${AI_SERVICE_PORT:-8000}:8000"
+    networks:
+      - seongjiduk
+
+  backend:
+    build:
+      context: ../..
+    container_name: seongjiduk-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-seongjiduk}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-seongjiduk}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-seongjiduk-local-password}
+      AI_SERVICE_BASE_URL: http://ai-service:8000
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    networks:
+      - seongjiduk
+
+volumes:
+  postgres_data:
+
+networks:
+  seongjiduk:
+    driver: bridge

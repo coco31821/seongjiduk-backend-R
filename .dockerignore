@@ -1,0 +1,14 @@
+.git
+.gradle
+build
+out
+docker-data
+.env
+.env.*
+!.env.example
+*.log
+*.pem
+*.key
+.idea
+.vscode
+repositories

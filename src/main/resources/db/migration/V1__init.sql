@@ -1,0 +1,2 @@
+-- Initial schema placeholder.
+-- Add tables from the ERD as API common work begins.

@@ -24,8 +24,30 @@
 ├── ai-service/       # LangGraph Python service
 ├── infra/            # docker, cloud, monitoring
 ├── .github/          # PR/Issue templates, GitHub Actions
+├── Dockerfile        # backend image
+├── build.gradle
+├── settings.gradle
 └── README.md
 ```
+
+## 빠른 시작
+
+```bash
+cp .env.example .env
+./gradlew test
+docker compose -f infra/docker/docker-compose.local.yml --env-file .env up --build
+```
+
+로컬 엔드포인트:
+
+- Backend health: `http://localhost:8080/api/health`
+- Swagger: `http://localhost:8080/swagger-ui.html`
+- AI health: `http://localhost:8000/health`
+
+## CI/CD 상태
+
+- `Backend CI`: Gradle test, backend Docker build, ai-service Docker build
+- CD 배포 workflow는 클라우드/서버 확정 후 추가
 
 ## 작업 전 확인
 

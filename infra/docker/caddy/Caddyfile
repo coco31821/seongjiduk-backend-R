@@ -1,0 +1,10 @@
+{$DOMAIN} {
+    encode gzip
+
+    reverse_proxy /api/* backend:8080
+    reverse_proxy /swagger-ui* backend:8080
+    reverse_proxy /v3/api-docs* backend:8080
+    reverse_proxy /actuator/health backend:8080
+
+    respond "Seongjiduk backend is running" 200
+}
