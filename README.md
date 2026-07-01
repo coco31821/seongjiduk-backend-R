@@ -16,19 +16,39 @@
 - 문서/기획 SSOT: https://github.com/sungjiduk/seongjiduk
 - 프론트엔드: https://github.com/sungjiduk/seongjiduk-frontend
 
-## 디렉토리 계획
+## 디렉토리 구조
 
 ```text
 .
-├── src/              # Spring Boot source
+├── src/main/java/com/sungjiduk/backend
+│   ├── auth/         # 회원가입, 로그인, 토큰
+│   ├── user/         # 사용자 프로필, 덕질 취향
+│   ├── content/      # 작품, 콘텐츠 메타데이터
+│   ├── spot/         # 성지/관광지 장소 데이터
+│   ├── trip/         # AI 여행 일정 생성, 저장, 공유
+│   ├── visit/        # 방문 인증, 피드백
+│   ├── booking/      # 항공권/숙소 외부 링크 추천
+│   ├── admin/        # 관리자 통계
+│   ├── event/        # 접속/이용 이벤트
+│   ├── seed/         # MVP 시드 데이터
+│   └── common/       # 공통 응답, 설정, 예외, 보안
+├── src/test/java/com/sungjiduk/backend
+│   ├── {domain}/controller
+│   ├── {domain}/service
+│   ├── {domain}/repository
+│   └── support/
+├── src/test/resources/fixtures
+├── docs/             # 백엔드 작업 규칙
 ├── ai-service/       # LangGraph Python service
-├── infra/            # docker, cloud, monitoring
-├── .github/          # PR/Issue templates, GitHub Actions
-├── Dockerfile        # backend image
+├── infra/            # Docker, cloud, monitoring
+├── .github/          # GitHub Actions, PR/Issue templates
+├── Dockerfile
 ├── build.gradle
 ├── settings.gradle
 └── README.md
 ```
+
+각 도메인은 기본적으로 `controller`, `service`, `repository`, `entity`, `dto/request`, `dto/response`, `exception`, `mapper` 패키지를 가집니다.
 
 ## 빠른 시작
 
@@ -43,6 +63,14 @@ docker compose -f infra/docker/docker-compose.local.yml --env-file .env up --bui
 - Backend health: `http://localhost:8080/api/health`
 - Swagger: `http://localhost:8080/swagger-ui.html`
 - AI health: `http://localhost:8000/health`
+
+## TDD 작업 방식
+
+구현 전에 `docs/TDD_GUIDE.md`를 먼저 확인합니다.
+
+1. `src/test/java/com/sungjiduk/backend/{domain}`에 실패하는 테스트를 먼저 작성합니다.
+2. `src/main/java/com/sungjiduk/backend/{domain}`에 최소 구현을 추가합니다.
+3. `./gradlew test`로 전체 테스트를 통과시킨 뒤 커밋합니다.
 
 ## CI/CD 상태
 
