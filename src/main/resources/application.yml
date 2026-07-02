@@ -2,7 +2,7 @@ spring:
   application:
     name: seongjiduk-backend
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/seongjiduk}
+    url: "${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/seongjiduk?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8}"
     username: ${SPRING_DATASOURCE_USERNAME:seongjiduk}
     password: ${SPRING_DATASOURCE_PASSWORD:seongjiduk-local-password}
   jpa:
