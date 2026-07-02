@@ -10,7 +10,7 @@
 
 - [ ] Auth/Security
 - [ ] Domain/API
-- [ ] AI service
+- [ ] AI client integration
 - [ ] Admin/Stats
 - [ ] Infra/CI/CD
 - [ ] Docs sync

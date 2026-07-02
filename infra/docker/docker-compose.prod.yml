@@ -19,7 +19,7 @@ services:
       - seongjiduk
 
   ai-service:
-    image: ${AI_IMAGE:-ghcr.io/sungjiduk/seongjiduk-ai-service:latest}
+    image: ${AI_IMAGE:-ghcr.io/sungjiduk/seongjiduk-ai:latest}
     restart: unless-stopped
     environment:
       AI_MODEL_PROVIDER: ${AI_MODEL_PROVIDER:-mock}

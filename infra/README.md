@@ -2,6 +2,8 @@
 
 Docker Compose, cloud 배포, monitoring 설정을 관리합니다.
 
+AI 서비스는 별도 repo `sungjiduk/seongjiduk-ai`에서 관리합니다. 로컬 compose는 기본적으로 sibling checkout `../seongjiduk-ai`를 build context로 사용합니다.
+
 ## Local
 
 ```bash

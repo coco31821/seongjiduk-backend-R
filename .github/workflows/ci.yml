@@ -31,7 +31,6 @@ jobs:
           test -f build.gradle
           test -f settings.gradle
           test -x gradlew
-          test -d ai-service
           test -d infra
 
       - name: Build and test Spring Boot app
@@ -47,6 +46,3 @@ jobs:
 
       - name: Build backend image
         run: docker build -t seongjiduk-backend:ci .
-
-      - name: Build AI service image
-        run: docker build -t seongjiduk-ai-service:ci ai-service

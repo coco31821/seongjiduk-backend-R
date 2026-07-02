@@ -8,13 +8,14 @@
 - Spring Security 인증/인가
 - Spring Data JPA 기반 영속화
 - 관리자 통계 API
-- LangGraph AI 서비스 연동
+- LangGraph AI 서비스 연동 HTTP client
 - Docker Compose, 배포/모니터링 인프라
 
 ## 관련 레포
 
 - 문서/기획 SSOT: https://github.com/sungjiduk/seongjiduk
 - 프론트엔드: https://github.com/sungjiduk/seongjiduk-frontend
+- AI 서비스: https://github.com/sungjiduk/seongjiduk-ai
 
 ## 디렉토리 구조
 
@@ -39,7 +40,6 @@
 │   └── support/
 ├── src/test/resources/fixtures
 ├── docs/             # 백엔드 작업 규칙
-├── ai-service/       # LangGraph Python service
 ├── infra/            # Docker, cloud, monitoring
 ├── .github/          # GitHub Actions, PR/Issue templates
 ├── Dockerfile
@@ -57,6 +57,8 @@ cp .env.example .env
 ./gradlew test
 docker compose -f infra/docker/docker-compose.local.yml --env-file .env up --build
 ```
+
+로컬 Docker Compose는 sibling 경로의 `../seongjiduk-ai` repo를 AI 서비스 build context로 사용합니다.
 
 로컬 엔드포인트:
 
@@ -85,7 +87,8 @@ docker compose -f infra/docker/docker-compose.local.yml --env-file .env up --bui
 
 ## CI/CD 상태
 
-- `Backend CI`: Gradle test, backend Docker build, ai-service Docker build
+- `Backend CI`: Gradle test, backend Docker build
+- AI 서비스 CI는 `sungjiduk/seongjiduk-ai` repo에서 별도로 수행
 - CD 배포 workflow는 클라우드/서버 확정 후 추가
 
 ## 작업 전 확인
