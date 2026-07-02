@@ -26,9 +26,10 @@ docker compose -f infra/docker/docker-compose.prod.yml --env-file .env.productio
 Production requires these environment variables:
 
 - `DOMAIN`
-- `POSTGRES_DB`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
+- `MYSQL_DATABASE`
+- `MYSQL_USER`
+- `MYSQL_PASSWORD`
+- `MYSQL_ROOT_PASSWORD`
 - `JWT_SECRET`
 - `GRAFANA_ADMIN_PASSWORD`
 - `BACKEND_IMAGE`

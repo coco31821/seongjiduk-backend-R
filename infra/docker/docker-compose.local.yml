@@ -1,19 +1,20 @@
 name: seongjiduk-local
 
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: seongjiduk-postgres
+  mysql:
+    image: mysql:8.4
+    container_name: seongjiduk-mysql
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-seongjiduk}
-      POSTGRES_USER: ${POSTGRES_USER:-seongjiduk}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seongjiduk-local-password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-seongjiduk}
+      MYSQL_USER: ${MYSQL_USER:-seongjiduk}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-seongjiduk-local-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-seongjiduk-root-password}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${MYSQL_PORT:-3306}:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -35,14 +36,14 @@ services:
     container_name: seongjiduk-backend
     environment:
       SPRING_PROFILES_ACTIVE: local
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-seongjiduk}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-seongjiduk}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-seongjiduk-local-password}
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-seongjiduk}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8"
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-seongjiduk}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-seongjiduk-local-password}
       AI_SERVICE_BASE_URL: http://ai-service:8000
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       ai-service:
         condition: service_started
@@ -50,7 +51,7 @@ services:
       - seongjiduk
 
 volumes:
-  postgres_data:
+  mysql_data:
 
 networks:
   seongjiduk:
