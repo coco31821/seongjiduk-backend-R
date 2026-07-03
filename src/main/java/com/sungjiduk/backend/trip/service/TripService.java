@@ -40,8 +40,22 @@ public class TripService {
                 .status(TripStatus.DRAFT)
                 .build();
 
+        layoutRoute(plan, request.selectedSpotIds(), request.excludedSpotIds());
+
+        TripPlan saved = tripPlanRepository.save(plan);
+        return toResponse(saved);
+    }
+
+    /**
+     * 선택 스팟을 여행 일수에 맞춰 Day별로 라운드로빈 분배해 배치한다(로컬 규칙).
+     * 기존 Day는 비우고 다시 채우므로 generate/regenerate가 공유한다.
+     * (추후 이 자리를 ai-service/LangGraph 호출로 교체)
+     */
+    private void layoutRoute(TripPlan plan, List<Long> selectedSpotIds, List<Long> excludedSpotIds) {
+        plan.getDays().clear();
+
         List<TripDay> days = new ArrayList<>();
-        for (int dayNo = 1; dayNo <= request.durationDays(); dayNo++) {
+        for (int dayNo = 1; dayNo <= plan.getDurationDays(); dayNo++) {
             TripDay day = TripDay.builder()
                     .dayNo(dayNo)
                     .summary("Day " + dayNo + " 성지순례")
@@ -50,8 +64,8 @@ public class TripService {
             days.add(day);
         }
 
-        Set<Long> excluded = request.excludedSpotIds() == null ? Set.of() : new HashSet<>(request.excludedSpotIds());
-        List<Long> spotIds = (request.selectedSpotIds() == null ? List.<Long>of() : request.selectedSpotIds())
+        Set<Long> excluded = excludedSpotIds == null ? Set.of() : new HashSet<>(excludedSpotIds);
+        List<Long> spotIds = (selectedSpotIds == null ? List.<Long>of() : selectedSpotIds)
                 .stream()
                 .filter(id -> !excluded.contains(id))
                 .toList();
@@ -66,9 +80,6 @@ public class TripService {
                     .stayMinutes(30)
                     .build());
         }
-
-        TripPlan saved = tripPlanRepository.save(plan);
-        return toResponse(saved);
     }
 
     private TripResponse toResponse(TripPlan plan) {
