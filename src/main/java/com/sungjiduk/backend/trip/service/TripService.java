@@ -9,6 +9,7 @@ import com.sungjiduk.backend.trip.entity.TripDay;
 import com.sungjiduk.backend.trip.entity.TripPlan;
 import com.sungjiduk.backend.trip.entity.TripStatus;
 import com.sungjiduk.backend.trip.entity.TripStop;
+import com.sungjiduk.backend.trip.exception.TripNotFoundException;
 import com.sungjiduk.backend.trip.repository.TripPlanRepository;
 import org.springframework.stereotype.Service;
 
@@ -94,7 +95,11 @@ public class TripService {
     }
 
     public TripSummaryResponse save(Long tripId) {
-        return new TripSummaryResponse(tripId, "러브라이브! 뮤즈 성지순례", 3, "SAVED");
+        TripPlan plan = tripPlanRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+        plan.markSaved();
+        tripPlanRepository.save(plan);
+        return new TripSummaryResponse(plan.getId(), plan.getTitle(), plan.getDurationDays(), plan.getStatus().name());
     }
 
     public List<TripSummaryResponse> findMyTrips() {

@@ -2,10 +2,12 @@ package com.sungjiduk.backend.trip.service;
 
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
+import com.sungjiduk.backend.trip.dto.response.TripSummaryResponse;
 import com.sungjiduk.backend.trip.entity.SpotType;
 import com.sungjiduk.backend.trip.entity.TripPlan;
 import com.sungjiduk.backend.trip.entity.TripStatus;
 import com.sungjiduk.backend.trip.entity.TripStop;
+import com.sungjiduk.backend.trip.exception.TripNotFoundException;
 import com.sungjiduk.backend.trip.repository.TripPlanRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Transactional
@@ -90,5 +93,29 @@ class TripServiceTest {
                 .map(TripResponse.Stop::spotId)
                 .toList();
         assertThat(spotIds).containsExactlyInAnyOrder(10L, 20L, 30L, 40L);
+    }
+
+    @Test
+    void save_marks_draft_plan_as_saved() {
+        TripPlan draft = tripPlanRepository.save(TripPlan.builder()
+                .contentId(1L)
+                .durationDays(2)
+                .title("성지순례 2일 루트")
+                .status(TripStatus.DRAFT)
+                .build());
+
+        TripSummaryResponse response = tripService.save(draft.getId());
+
+        assertThat(response.tripId()).isEqualTo(draft.getId());
+        assertThat(response.durationDays()).isEqualTo(2);
+        assertThat(response.status()).isEqualTo("SAVED");
+        assertThat(tripPlanRepository.findById(draft.getId()).orElseThrow().getStatus())
+                .isEqualTo(TripStatus.SAVED);
+    }
+
+    @Test
+    void save_throws_when_trip_not_found() {
+        assertThatThrownBy(() -> tripService.save(999L))
+                .isInstanceOf(TripNotFoundException.class);
     }
 }
