@@ -152,25 +152,4 @@ public class TripService {
         String shareUrl = "https://seongjiduk.example/share/" + plan.getShareToken();
         return new TripShareResponse(plan.getId(), shareUrl, plan.getTitle() + " 공유");
     }
-
-    private TripResponse mockTrip(Long tripId, int durationDays) {
-        return new TripResponse(
-                tripId,
-                "러브라이브! 뮤즈 " + durationDays + "일 성지순례",
-                List.of(new TripResponse.DayPlan(
-                        1,
-                        "아키하바라 주변 성지 중심 일정",
-                        List.of(new TripResponse.Stop(
-                                1,
-                                "PILGRIMAGE",
-                                1L,
-                                "쇼헤이바시",
-                                "10:00",
-                                30,
-                                "작품 주요 장면과 연결된 대표 성지입니다."
-                        ))
-                )),
-                "러브라이브! 뮤즈 성지순례 루트"
-        );
-    }
 }
