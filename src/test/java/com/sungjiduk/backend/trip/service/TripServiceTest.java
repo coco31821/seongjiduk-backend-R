@@ -313,4 +313,51 @@ class TripServiceTest {
                     .isInstanceOf(TripNotFoundException.class);
         }
     }
+
+    @Nested
+    @DisplayName("regenerate는")
+    class Regenerate {
+
+        @Test
+        @DisplayName("기존 일정에 추가/제외 스팟을 반영해 재배치한다")
+        void reflectsAddedAndExcludedSpots() {
+            // given
+            TripResponse created = tripService.generate(new TripGenerateRequest(
+                    1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L, 20L), List.of()));
+
+            // when — 30 추가, 20 제외
+            TripResponse result = tripService.regenerate(created.tripId(), new TripGenerateRequest(
+                    1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L, 20L, 30L), List.of(20L)));
+
+            // then
+            assertThat(result.tripId()).isEqualTo(created.tripId());
+            List<Long> responseSpotIds = result.days().stream()
+                    .flatMap(day -> day.stops().stream())
+                    .map(TripResponse.Stop::spotId)
+                    .toList();
+            assertThat(responseSpotIds).containsExactlyInAnyOrder(10L, 30L);
+
+            List<Long> persistedSpotIds = tripPlanRepository.findById(created.tripId()).orElseThrow()
+                    .getDays().stream()
+                    .flatMap(day -> day.getStops().stream())
+                    .map(TripStop::getPilgrimageSpotId)
+                    .toList();
+            assertThat(persistedSpotIds).containsExactlyInAnyOrder(10L, 30L);
+        }
+
+        @Test
+        @DisplayName("없는 일정이면 TripNotFoundException을 던진다")
+        void throwsWhenTripNotFound() {
+            // given
+            TripGenerateRequest request = new TripGenerateRequest(
+                    1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L), List.of());
+
+            // when / then
+            assertThatThrownBy(() -> tripService.regenerate(999L, request))
+                    .isInstanceOf(TripNotFoundException.class);
+        }
+    }
 }
