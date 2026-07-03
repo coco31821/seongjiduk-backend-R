@@ -96,4 +96,11 @@ public class TripPlan {
     public void markSaved() {
         this.status = TripStatus.SAVED;
     }
+
+    /** 공유 토큰을 최초 1회만 발급한다(멱등). 이미 있으면 유지해 공유 링크가 고정되게 한다. */
+    public void assignShareToken(String token) {
+        if (this.shareToken == null) {
+            this.shareToken = token;
+        }
+    }
 }

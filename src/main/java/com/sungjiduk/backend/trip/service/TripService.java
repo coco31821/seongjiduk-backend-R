@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class TripService {
@@ -128,8 +129,13 @@ public class TripService {
         tripPlanRepository.delete(plan);
     }
 
+    @Transactional
     public TripShareResponse share(Long tripId) {
-        return new TripShareResponse(tripId, "https://seongjiduk.example/trips/" + tripId, "러브라이브! 뮤즈 성지순례 2박 3일 루트");
+        TripPlan plan = tripPlanRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+        plan.assignShareToken(UUID.randomUUID().toString().replace("-", ""));
+        String shareUrl = "https://seongjiduk.example/share/" + plan.getShareToken();
+        return new TripShareResponse(plan.getId(), shareUrl, plan.getTitle() + " 공유");
     }
 
     private TripResponse mockTrip(Long tripId, int durationDays) {
