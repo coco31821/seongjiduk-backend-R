@@ -100,11 +100,18 @@ public class TripService {
                 .orElseThrow(() -> new TripNotFoundException(tripId));
         plan.markSaved();
         tripPlanRepository.save(plan);
-        return new TripSummaryResponse(plan.getId(), plan.getTitle(), plan.getDurationDays(), plan.getStatus().name());
+        return toSummary(plan);
     }
 
+    @Transactional(readOnly = true)
     public List<TripSummaryResponse> findMyTrips() {
-        return List.of(new TripSummaryResponse(10L, "러브라이브! 뮤즈 성지순례", 3, "SAVED"));
+        return tripPlanRepository.findAll().stream()
+                .map(this::toSummary)
+                .toList();
+    }
+
+    private TripSummaryResponse toSummary(TripPlan plan) {
+        return new TripSummaryResponse(plan.getId(), plan.getTitle(), plan.getDurationDays(), plan.getStatus().name());
     }
 
     @Transactional(readOnly = true)

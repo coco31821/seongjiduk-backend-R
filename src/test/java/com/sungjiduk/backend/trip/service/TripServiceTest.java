@@ -157,6 +157,40 @@ class TripServiceTest {
     }
 
     @Nested
+    @DisplayName("findMyTrips는")
+    class FindMyTrips {
+
+        @Test
+        @DisplayName("저장된 모든 일정을 요약으로 반환한다")
+        void returnsTripSummaries() {
+            // given
+            tripPlanRepository.save(TripPlan.builder()
+                    .contentId(1L).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
+            tripPlanRepository.save(TripPlan.builder()
+                    .contentId(1L).durationDays(3).title("뮤즈 3일 루트").status(TripStatus.DRAFT).build());
+
+            // when
+            List<TripSummaryResponse> result = tripService.findMyTrips();
+
+            // then
+            assertThat(result).extracting(TripSummaryResponse::title)
+                    .containsExactlyInAnyOrder("뮤즈 2일 루트", "뮤즈 3일 루트");
+            assertThat(result).extracting(TripSummaryResponse::status)
+                    .containsExactlyInAnyOrder("SAVED", "DRAFT");
+        }
+
+        @Test
+        @DisplayName("일정이 없으면 빈 목록을 반환한다")
+        void returnsEmptyWhenNone() {
+            // when
+            List<TripSummaryResponse> result = tripService.findMyTrips();
+
+            // then
+            assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("save는")
     class Save {
 
