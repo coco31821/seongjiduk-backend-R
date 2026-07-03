@@ -1,16 +1,53 @@
 package com.sungjiduk.backend.admin.service;
 
+import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
 import com.sungjiduk.backend.admin.dto.response.AdminStatsOverviewResponse;
 import com.sungjiduk.backend.admin.dto.response.StatsSeriesResponse;
+import com.sungjiduk.backend.content.entity.Content;
+import com.sungjiduk.backend.content.repository.ContentRepository;
+import com.sungjiduk.backend.event.repository.UsageEventRepository;
+import com.sungjiduk.backend.trip.repository.TripPlanRepository;
+import com.sungjiduk.backend.user.repository.UserRepository;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+
+import lombok.AllArgsConstructor;
 
 @Service
+@AllArgsConstructor
 public class AdminStatsService {
 
+    private final UserRepository userRepository;
+    private final UsageEventRepository usageEventRepository;
+    private final TripPlanRepository tripPlanRepository;
+    private final ContentRepository contentRepository;
+
     public AdminStatsOverviewResponse overview() {
-        return new AdminStatsOverviewResponse(120, 34, 88, 103, "러브라이브! 뮤즈", "쇼헤이바시");
+        Content content;
+        try {
+            Long frequentContentId = tripPlanRepository.findFrequentContent(Pageable.ofSize(1)).getFirst();
+            content = contentRepository.findById(frequentContentId).orElseThrow();
+        } catch (NoSuchElementException e) {
+            throw new RuntimeException(e);
+        }
+
+        return new AdminStatsOverviewResponse(
+            userRepository.count(),
+            usageEventRepository.countUsageEventByCreatedAtBetween(
+                (LocalDateTime.now().toLocalDate().atStartOfDay()),
+                LocalDateTime.now().toLocalDate().atTime(LocalTime.MAX)),
+                tripPlanRepository.count(),
+            103L, // AiRequestLogRepository.count(),
+            content.getTitle(),
+            "쇼헤이바시");
     }
 
     public StatsSeriesResponse visitors() {

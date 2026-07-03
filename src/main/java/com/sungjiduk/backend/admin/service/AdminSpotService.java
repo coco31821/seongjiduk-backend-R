@@ -4,6 +4,7 @@ import com.sungjiduk.backend.admin.dto.request.AdminSpotUpsertRequest;
 import com.sungjiduk.backend.admin.dto.request.SpotReportProcessRequest;
 import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
 import com.sungjiduk.backend.admin.dto.response.SpotReportAdminResponse;
+import com.sungjiduk.backend.admin.exception.ContentNotFoundException;
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
@@ -30,7 +31,7 @@ public class AdminSpotService {
         Content content = findContent(request.contentId());
 
         if (content == null) {
-            throw new RuntimeException("해당 작품을 찾을 수 없습니다.");
+            throw new ContentNotFoundException(request.contentId());
         }
 
         PilgrimageSpot save = pilgrimageSpotRepository.save(
@@ -48,7 +49,7 @@ public class AdminSpotService {
 
         return new AdminCommandResponse(save.getId(), "CREATED");
     }
-    
+
     public AdminCommandResponse update(Long spotId, AdminSpotUpsertRequest request) {
         return new AdminCommandResponse(spotId, "UPDATED");
     }
