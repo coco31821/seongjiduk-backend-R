@@ -33,6 +33,7 @@ public class SecurityConfig {
                                 "/api/booking-links"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/trips/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/events").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
