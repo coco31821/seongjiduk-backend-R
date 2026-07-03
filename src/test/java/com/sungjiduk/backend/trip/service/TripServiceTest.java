@@ -227,4 +227,38 @@ class TripServiceTest {
                     .isInstanceOf(TripNotFoundException.class);
         }
     }
+
+    @Nested
+    @DisplayName("delete는")
+    class Delete {
+
+        @Test
+        @DisplayName("저장된 일정을 삭제한다")
+        void deletesTrip() {
+            // given
+            TripPlan plan = tripPlanRepository.save(TripPlan.builder()
+                    .contentId(1L)
+                    .durationDays(2)
+                    .title("성지순례 2일 루트")
+                    .status(TripStatus.SAVED)
+                    .build());
+
+            // when
+            tripService.delete(plan.getId());
+
+            // then
+            assertThat(tripPlanRepository.findById(plan.getId())).isEmpty();
+        }
+
+        @Test
+        @DisplayName("없는 일정이면 TripNotFoundException을 던진다")
+        void throwsWhenTripNotFound() {
+            // given
+            Long missingTripId = 999L;
+
+            // when / then
+            assertThatThrownBy(() -> tripService.delete(missingTripId))
+                    .isInstanceOf(TripNotFoundException.class);
+        }
+    }
 }
