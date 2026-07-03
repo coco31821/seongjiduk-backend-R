@@ -121,7 +121,11 @@ public class TripService {
         return toResponse(plan);
     }
 
+    @Transactional
     public void delete(Long tripId) {
+        TripPlan plan = tripPlanRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+        tripPlanRepository.delete(plan);
     }
 
     public TripShareResponse share(Long tripId) {
