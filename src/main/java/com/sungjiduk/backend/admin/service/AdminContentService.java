@@ -3,10 +3,12 @@ package com.sungjiduk.backend.admin.service;
 import com.sungjiduk.backend.admin.dto.request.AdminContentUpsertRequest;
 import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AdminContentService {
 
+    @Transactional
     public AdminCommandResponse create(AdminContentUpsertRequest request) {
         return new AdminCommandResponse(1L, "CREATED");
     }

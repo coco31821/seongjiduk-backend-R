@@ -25,6 +25,9 @@ public class AdminContentController {
 
     @PostMapping
     public ApiResponse<AdminCommandResponse> create(@Valid @RequestBody AdminContentUpsertRequest request) {
+
+
+        
         return ApiResponse.ok(adminContentService.create(request));
     }
 
