@@ -103,8 +103,12 @@ public class TripService {
         return new TripResponse(plan.getId(), plan.getTitle(), days, plan.getShareToken());
     }
 
+    @Transactional
     public TripResponse regenerate(Long tripId, TripGenerateRequest request) {
-        return mockTrip(tripId, request.durationDays());
+        TripPlan plan = tripPlanRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+        layoutRoute(plan, request.selectedSpotIds(), request.excludedSpotIds());
+        return toResponse(plan);
     }
 
     public TripSummaryResponse save(Long tripId) {
