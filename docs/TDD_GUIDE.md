@@ -44,6 +44,41 @@ src/main/java/com/sungjiduk/backend/{domain}/mapper
 - `event`: 접속/이용 이벤트 수집
 - `seed`: MVP 시드 데이터 적재
 
+## 테스트 스타일 (BDD)
+
+모든 테스트는 BDD 스펙 스타일로 작성합니다.
+
+- 테스트 대상(메서드/기능)별로 `@Nested` 클래스로 그룹핑한다.
+- 클래스/그룹/각 테스트에 한글 `@DisplayName`을 붙여 "무엇을 하면 무엇이 된다"를 문장으로 표현한다. (스펙 트리의 `it` 역할)
+- 각 테스트 본문은 `// given` `// when` `// then` 3구간으로 나눈다.
+- 단언은 AssertJ(`assertThat`, `assertThatThrownBy`)를 사용한다.
+- 협력 객체를 목킹할 때는 BDDMockito(`given(...).willReturn(...)`, `then(...).should()`)를 쓴다.
+- 테스트 메서드명은 camelCase 동작 요약(예: `savesDraftPlan`)으로 두고, 사람이 읽는 설명은 `@DisplayName`에 담는다.
+
+```java
+@SpringBootTest
+@Transactional
+@DisplayName("TripService")
+class TripServiceTest {
+
+    @Nested
+    @DisplayName("generate는")
+    class Generate {
+
+        @Test
+        @DisplayName("일정을 DRAFT 상태로 저장한다")
+        void savesDraftPlan() {
+            // given
+            TripGenerateRequest request = ...;
+            // when
+            TripResponse response = tripService.generate(request);
+            // then
+            assertThat(response.tripId()).isNotNull();
+        }
+    }
+}
+```
+
 ## 이름 규칙
 
 - Controller: `{Domain}Controller`
