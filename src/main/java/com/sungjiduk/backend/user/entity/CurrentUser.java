@@ -11,7 +11,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 @Getter
 public class CurrentUser  {
@@ -19,7 +18,6 @@ public class CurrentUser  {
     private String email;
     private String nickname;
     private Role role;
-    private Map<String,Object> attributes;
 
     @Builder
     private CurrentUser(

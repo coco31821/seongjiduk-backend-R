@@ -104,5 +104,5 @@ public class TokenProvider {
         return TokenBody.builder()
                 .email(String.valueOf(claimsJws.getPayload().get("email")))
                 .build();
-    };
+    }
 }

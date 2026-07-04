@@ -38,9 +38,5 @@ public class UserEmailRepositoryImpl implements UserEmailRepository {
         return userRepository.findByEmail(email);
     }
 
-    @Override
-    public User findByIdOrThrow(Long id) {
 
-        return userRepository.findByIdOrThrow(id);
-    }
 }
