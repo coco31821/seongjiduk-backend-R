@@ -45,15 +45,15 @@ Content-Type: application/json
 
 ### Save trip
 POST http://localhost:8080/api/trips/10/save
-Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ=
+Authorization: Bearer {{accessToken}}
 
 ### My trips
 GET http://localhost:8080/api/trips
-Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ=
+Authorization: Bearer {{accessToken}}
 
 ### Create visit
 POST http://localhost:8080/api/visits
-Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ=
+Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
@@ -67,4 +67,4 @@ GET http://localhost:8080/api/booking-links?city=Tokyo&startDate=2026-07-10&endD
 
 ### Admin overview
 GET http://localhost:8080/api/admin/stats/overview
-Authorization: Basic YWRtaW46YWRtaW4xMjM0
+Authorization: Bearer {{adminAccessToken}}
