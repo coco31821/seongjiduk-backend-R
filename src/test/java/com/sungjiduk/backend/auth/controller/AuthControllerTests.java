@@ -7,12 +7,14 @@ import com.sungjiduk.backend.common.properties.JwtProperties;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.user.repository.UserEmailRepository;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -21,10 +23,15 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -241,6 +248,55 @@ class AuthControllerTests {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value(ErrorCode.LOGIN_FAILED.name()))
                 .andExpect(jsonPath("$.error.message").value(ErrorCode.LOGIN_FAILED.getDescription()));
+        }
+    }
+
+    @Nested
+    @DisplayName("로그아웃")
+    class Logout {
+
+        @Test
+        @DisplayName("로그아웃 성공해 RefreshToken을 삭제하고 쿠키를 만료한다.")
+        void 로그아웃성공() throws Exception {
+            // given
+            String refreshToken = "refresh-token-for-controller-logout";
+
+            // when
+            mockMvc.perform(
+                    MockMvcRequestBuilders
+                        .post(BASE_URL + "/logout")
+                        .cookie(new Cookie("refreshToken", refreshToken))
+                        .with(user("logout-user"))
+                )
+                // then
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$.error").doesNotExist())
+                // Set-Cookie 헤더가 refreshToken 쿠키를 삭제하도록 내려왔는지 확인. SET_COOKIE값을 검사.
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                    containsString("refreshToken="),    // 로그아웃 시 refresh token 쿠키를 대상
+                    containsString("Path=/"),
+                    containsString("Max-Age=0"),
+                    containsString("HttpOnly"),
+                    containsString("SameSite=Lax")
+                )));
+
+            verify(refreshTokenRepository).deleteById(refreshToken);
+        }
+
+
+        @Test
+        @DisplayName("인증 없이 로그아웃 요청하면 실패한다")
+        void 로그아웃_인증없음() throws Exception {
+            // when
+            mockMvc.perform(
+                    MockMvcRequestBuilders
+                        .post(BASE_URL + "/logout")
+                        .cookie(new Cookie("refreshToken", "refresh-token"))
+                )
+            // then
+                .andExpect(status().isForbidden());
         }
     }
 }
