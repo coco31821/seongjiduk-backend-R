@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @Transactional
@@ -166,6 +167,24 @@ class AuthServiceTests {
             assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining(ErrorCode.LOGIN_FAILED.getDescription());
+        }
+    }
+
+    @Nested
+    @DisplayName("logout() 메서드에서")
+    class Logout {
+
+        @Test
+        @DisplayName("RefreshToken을 삭제한다")
+        void logout_success() {
+            // given
+            String refreshToken = "refresh-token-for-logout";
+
+            // when
+            authService.logout(refreshToken);
+
+            // then
+            verify(refreshTokenRepository).deleteById(refreshToken);
         }
     }
 }
