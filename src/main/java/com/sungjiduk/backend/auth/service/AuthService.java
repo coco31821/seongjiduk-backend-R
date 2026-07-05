@@ -9,6 +9,7 @@ import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.dto.KeyPair;
 import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.common.properties.JwtProperties;
+import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.common.security.service.TokenProvider;
 import com.sungjiduk.backend.common.util.PreConditions;
 import com.sungjiduk.backend.user.repository.UserEmailRepository;
@@ -26,6 +27,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TokenProvider tokenProvider;
     private final JwtProperties jwtProperties;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional
     public UserSummaryResponse signup(SignupRequest request) {
@@ -61,10 +63,9 @@ public class AuthService {
         );
     }
 
-    public void logout() {
-
-
-
+    @Transactional
+    public void logout(String refreshToken) {
+        refreshTokenRepository.deleteById(refreshToken);
     }
 
     public UserSummaryResponse me() {
