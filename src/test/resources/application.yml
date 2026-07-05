@@ -16,3 +16,17 @@ management:
     web:
       exposure:
         include: health,info
+
+custom:
+  jwt:
+    payload:
+      issuer: seongjiduk-test
+      subject-access-token: access-token
+      subject-refresh-token: refresh-token
+      audiance: test
+    secrets:
+      app-key: test-secret-key-must-be-at-least-32-bytes-long
+      vanillakey: test
+    validations:
+      access: 3600000
+      refresh: 1209600000
