@@ -1,5 +1,6 @@
 package com.sungjiduk.backend.auth.service;
 
+import com.sungjiduk.backend.auth.dto.response.MeResponse;
 import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
@@ -13,6 +14,8 @@ import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.common.security.service.TokenProvider;
 import com.sungjiduk.backend.common.util.PreConditions;
 import com.sungjiduk.backend.user.repository.UserEmailRepository;
+import com.sungjiduk.backend.user.repository.UserPreferenceRepository;
+import com.sungjiduk.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,6 +31,8 @@ public class AuthService {
     private final TokenProvider tokenProvider;
     private final JwtProperties jwtProperties;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final UserRepository userRepository;
+    private final UserPreferenceRepository userPreferenceRepository;
 
     @Transactional
     public UserSummaryResponse signup(SignupRequest request) {
@@ -68,7 +73,13 @@ public class AuthService {
         refreshTokenRepository.deleteById(refreshToken);
     }
 
-    public UserSummaryResponse me() {
-        return new UserSummaryResponse(1L, "fan@example.com", "muse_fan");
+    public MeResponse me(Long userId) {
+        User user = userRepository.findByIdOrThrow(userId);
+
+        return MeResponse.from(
+            user,
+            userPreferenceRepository.findFirstByUserIdOrderByIdDesc(userId).orElse(null)
+        );
     }
+
 }

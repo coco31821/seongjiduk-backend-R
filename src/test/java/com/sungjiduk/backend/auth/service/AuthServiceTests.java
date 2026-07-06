@@ -3,13 +3,16 @@ package com.sungjiduk.backend.auth.service;
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
 import com.sungjiduk.backend.auth.dto.response.LoginResponse;
+import com.sungjiduk.backend.auth.dto.response.MeResponse;
 import com.sungjiduk.backend.auth.dto.response.UserSummaryResponse;
 import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.common.properties.JwtProperties;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.user.entity.User;
+import com.sungjiduk.backend.user.entity.UserPreference;
 import com.sungjiduk.backend.user.repository.UserEmailRepository;
+import com.sungjiduk.backend.user.repository.UserPreferenceRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,9 @@ class AuthServiceTests {
 
     @Autowired
     UserEmailRepository userEmailRepository;
+
+    @Autowired
+    UserPreferenceRepository userPreferenceRepository;
 
     @Autowired
     PasswordEncoder passwordEncoder;
@@ -185,6 +191,64 @@ class AuthServiceTests {
 
             // then
             verify(refreshTokenRepository).deleteById(refreshToken);
+        }
+    }
+
+    @Nested
+    @DisplayName("me() 메서드에서")
+    class Me {
+
+        @Test
+        @DisplayName("내 정보와 취향 정보를 반환한다")
+        void me_success() {
+            // given
+            User savedUser = userEmailRepository.userSave(User.builder()
+                .email("auth-service-me-success@gmail.com")
+                .passwordHash(passwordEncoder.encode("tjdwlejr1234"))
+                .nickname("내정보유저")
+                .build());
+            userPreferenceRepository.save(
+                UserPreference.create(savedUser, "slow", "medium")
+            );
+
+            // when
+            MeResponse response = authService.me(savedUser.getId());
+
+            // then
+            assertThat(response.id()).isEqualTo(savedUser.getId());
+            assertThat(response.email()).isEqualTo(savedUser.getEmail());
+            assertThat(response.nickname()).isEqualTo(savedUser.getNickname());
+            assertThat(response.travel_style()).isEqualTo("slow");
+            assertThat(response.budget_level()).isEqualTo("medium");
+        }
+
+        @Test
+        @DisplayName("취향 정보가 없어도 내 기본 정보를 반환한다")
+        void me_without_preference() {
+            // given
+            User savedUser = userEmailRepository.userSave(User.builder()
+                .email("auth-service-me-without-preference@gmail.com")
+                .passwordHash(passwordEncoder.encode("tjdwlejr1234"))
+                .nickname("기본정보유저")
+                .build());
+
+            // when
+            MeResponse response = authService.me(savedUser.getId());
+
+            // then
+            assertThat(response.id()).isEqualTo(savedUser.getId());
+            assertThat(response.email()).isEqualTo(savedUser.getEmail());
+            assertThat(response.nickname()).isEqualTo(savedUser.getNickname());
+            assertThat(response.travel_style()).isNull();
+            assertThat(response.budget_level()).isNull();
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 유저이면 실패한다")
+        void me_user_not_found() {
+            assertThatThrownBy(() -> authService.me(-1L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(ErrorCode.USER_NOT_FOUND.getDescription());
         }
     }
 }
