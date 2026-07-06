@@ -61,7 +61,7 @@ class TripServiceTest {
         private TripGenerateRequest requestWith(java.util.List<TripGenerateRequest.AttractionInput> attractions) {
             return new TripGenerateRequest(
                     1L, 1, "NORMAL", "Tokyo", "PILGRIMAGE_ONLY",
-                    java.util.List.of(10L), java.util.List.of(), attractions, null);
+                    java.util.List.of(10L), java.util.List.of(), attractions, null, null);
         }
 
         @Test
@@ -93,7 +93,7 @@ class TripServiceTest {
             // when
             TripResponse regenerated = tripService.regenerate(created.tripId(), new TripGenerateRequest(
                     1L, 1, "NORMAL", "Tokyo", "PILGRIMAGE_ONLY",
-                    java.util.List.of(10L), java.util.List.of(), null, java.util.List.of(attractionId)));
+                    java.util.List.of(10L), java.util.List.of(), null, java.util.List.of(attractionId), null));
 
             // then
             var stops = regenerated.days().stream().flatMap(d -> d.stops().stream()).toList();
@@ -112,7 +112,7 @@ class TripServiceTest {
             // given
             TripGenerateRequest request = new TripGenerateRequest(
                     1L, 3, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(1L, 2L, 3L), List.of(), null, null);
+                    List.of(1L, 2L, 3L), List.of(), null, null, null);
 
             // when
             TripResponse response = tripService.generate(request);
@@ -131,7 +131,7 @@ class TripServiceTest {
             // given
             TripGenerateRequest request = new TripGenerateRequest(
                     1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(10L, 20L, 30L, 40L), List.of(), null, null);
+                    List.of(10L, 20L, 30L, 40L), List.of(), null, null, null);
 
             // when
             TripResponse response = tripService.generate(request);
@@ -154,7 +154,7 @@ class TripServiceTest {
             // given
             TripGenerateRequest request = new TripGenerateRequest(
                     1L, 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(10L, 20L, 30L), List.of(20L), null, null);
+                    List.of(10L, 20L, 30L), List.of(20L), null, null, null);
 
             // when
             TripResponse response = tripService.generate(request);
@@ -174,7 +174,7 @@ class TripServiceTest {
             // given
             TripGenerateRequest request = new TripGenerateRequest(
                     1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(10L, 20L, 30L, 40L), List.of(), null, null);
+                    List.of(10L, 20L, 30L, 40L), List.of(), null, null, null);
 
             // when
             TripResponse response = tripService.generate(request);
@@ -199,7 +199,7 @@ class TripServiceTest {
             // given
             TripResponse created = tripService.generate(new TripGenerateRequest(
                     1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(10L, 20L, 30L, 40L), List.of(), null, null));
+                    List.of(10L, 20L, 30L, 40L), List.of(), null, null, null));
 
             // when
             TripResponse found = tripService.findTrip(created.tripId());
@@ -393,12 +393,12 @@ class TripServiceTest {
             // given
             TripResponse created = tripService.generate(new TripGenerateRequest(
                     1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(10L, 20L), List.of(), null, null));
+                    List.of(10L, 20L), List.of(), null, null, null));
 
             // when — 30 추가, 20 제외
             TripResponse result = tripService.regenerate(created.tripId(), new TripGenerateRequest(
                     1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(10L, 20L, 30L), List.of(20L), null, null));
+                    List.of(10L, 20L, 30L), List.of(20L), null, null, null));
 
             // then
             assertThat(result.tripId()).isEqualTo(created.tripId());
@@ -422,7 +422,7 @@ class TripServiceTest {
             // given
             TripGenerateRequest request = new TripGenerateRequest(
                     1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(10L), List.of(), null, null);
+                    List.of(10L), List.of(), null, null, null);
 
             // when / then
             assertThatThrownBy(() -> tripService.regenerate(999L, request))
@@ -448,7 +448,7 @@ class TripServiceTest {
                     "openai")).given(aiTripClient).generate(any());
             TripGenerateRequest request = new TripGenerateRequest(
                     1L, 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
-                    List.of(10L), List.of(), null, null);
+                    List.of(10L), List.of(), null, null, null);
 
             // when
             TripResponse response = tripService.generate(request);

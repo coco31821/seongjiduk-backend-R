@@ -165,7 +165,8 @@ public class TripService {
                         request.startLocation(), request.travelStyle()),
                 candidates,
                 new ArrayList<>(spotsById.keySet()),
-                request.excludedSpotIds() == null ? List.of() : request.excludedSpotIds());
+                request.excludedSpotIds() == null ? List.of() : request.excludedSpotIds(),
+                request.instruction());
     }
 
     private void applyAiLayout(TripPlan plan, AiTripLayout layout) {
