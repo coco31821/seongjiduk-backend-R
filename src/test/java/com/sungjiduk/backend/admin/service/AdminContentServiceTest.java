@@ -9,10 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import com.sungjiduk.backend.admin.dto.request.AdminContentUpsertRequest;
-import com.sungjiduk.backend.admin.dto.request.AdminSpotUpsertRequest;
 import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
-import com.sungjiduk.backend.admin.exception.ContentNotFoundException;
-import com.sungjiduk.backend.content.repository.ContentRepository;
 
 import lombok.extern.slf4j.Slf4j;
 

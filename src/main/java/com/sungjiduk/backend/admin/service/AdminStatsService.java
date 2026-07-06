@@ -47,10 +47,10 @@ public class AdminStatsService {
             topContentToday = ContentTodayList.getFirst();
         }
 
-        List<Long> SpotTodayList = tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
+        List<Long> SpotTodayList = null; //tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
         String topSpotToday;
 
-        if (SpotTodayList.isEmpty()) {
+        if (SpotTodayList == null) {
             topSpotToday = "아직 집계된 성지가 없습니다";
         }
 

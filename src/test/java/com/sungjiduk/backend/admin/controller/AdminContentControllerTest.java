@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -19,12 +20,20 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.sungjiduk.backend.admin.dto.request.AdminContentUpsertRequest;
 import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
 import com.sungjiduk.backend.admin.service.AdminContentService;
+import com.sungjiduk.backend.common.security.service.TokenProvider;
+import com.sungjiduk.backend.user.service.UserService;
 
 @DisplayName("AdminContentController")
 @WebMvcTest(AdminContentController.class)
 class AdminContentControllerTest {
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private TokenProvider tokenProvider;
+
+    @MockitoBean
+    private UserService userService;
 
     @MockitoBean
     private AdminContentService adminContentService;
@@ -78,5 +87,24 @@ class AdminContentControllerTest {
                 // then
                 .andExpect((status().isUnauthorized()));
         }
+
+        @Test
+        @WithAnonymousUser
+        @DisplayName("로그인이 되지 않았으면 HTTP 401이 되어야한다.")
+        void create_failed_no_login() throws Exception {
+            // given
+            given(adminContentService.create(any(AdminContentUpsertRequest.class)))
+                .willReturn(new AdminCommandResponse(1L, "CREATED"));
+
+            //when
+            mockMvc.perform(post("/api/admin/contents")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(contentJson)
+                    .with(csrf()))
+                // then
+                .andExpect((status().isUnauthorized()));
+        }
     }
+
+
 }

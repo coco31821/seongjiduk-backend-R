@@ -73,7 +73,7 @@ public class AdminSpotServiceTest {
         @Test
         @DisplayName("올바르지 않은 작품이 들어오면 실패해야 한다.")
         void create_fail() {
-            Long contentId = 2L;
+            Long contentId = 9999L;
 
             AdminSpotUpsertRequest request = new AdminSpotUpsertRequest(
                 contentId,
