@@ -54,7 +54,9 @@ public class ContentService {
                         spot.getLat().doubleValue(),
                         spot.getLng().doubleValue(),
                         spot.getRecommendedDurationMin(),
-                        spot.getReferenceUrl()))
+                        spot.getReferenceUrl(),
+                        null,
+                        null))
                 .toList();
         return new ContentSpotsResponse(content.getId(), content.getTitle(), spots);
     }
