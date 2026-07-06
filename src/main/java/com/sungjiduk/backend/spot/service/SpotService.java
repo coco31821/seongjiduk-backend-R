@@ -22,8 +22,32 @@ public class SpotService {
         this.attractionsProvider = attractionsProvider;
     }
 
+    /** 성지별 주변 관광지 캐시(외부 API 절약). 빈 결과는 캐시하지 않아 키 추가 시 재시도된다. */
+    private final java.util.Map<Long, NearbyAttractionsResponse> nearbyCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final int MAX_ATTRACTIONS = 6;
+
     public NearbyAttractionsResponse findNearbyAttractions(Long spotId) {
-        throw new UnsupportedOperationException("not implemented yet");
+        NearbyAttractionsResponse cached = nearbyCache.get(spotId);
+        if (cached != null) {
+            return cached;
+        }
+        PilgrimageSpot spot = spotRepository.findByIdOrThrow(spotId);
+        var attractions = attractionsProvider
+                .findNearby(spot.getLat().doubleValue(), spot.getLng().doubleValue())
+                .stream()
+                .filter(a -> a.rating() != null && a.ratingCount() != null)
+                .sorted(java.util.Comparator.comparing(
+                        NearbyAttractionsProvider.Attraction::ratingCount).reversed())
+                .limit(MAX_ATTRACTIONS)
+                .map(a -> new NearbyAttractionsResponse.AttractionSummary(
+                        a.name(), a.category(), a.rating(), a.ratingCount(), a.lat(), a.lng(), a.mapsUrl()))
+                .toList();
+        NearbyAttractionsResponse response = new NearbyAttractionsResponse(spotId, attractions);
+        if (!attractions.isEmpty()) {
+            nearbyCache.put(spotId, response);
+        }
+        return response;
     }
 
     public SpotDetailResponse findSpot(Long spotId) {
