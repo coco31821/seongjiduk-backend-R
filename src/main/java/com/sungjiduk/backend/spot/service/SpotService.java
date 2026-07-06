@@ -1,9 +1,11 @@
 package com.sungjiduk.backend.spot.service;
 
 import com.sungjiduk.backend.spot.dto.request.SpotReportCreateRequest;
+import com.sungjiduk.backend.spot.dto.response.NearbyAttractionsResponse;
 import com.sungjiduk.backend.spot.dto.response.SpotDetailResponse;
 import com.sungjiduk.backend.spot.dto.response.SpotReportResponse;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
+import com.sungjiduk.backend.spot.infra.NearbyAttractionsProvider;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +15,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class SpotService {
 
     private final PilgrimageSpotRepository spotRepository;
+    private final NearbyAttractionsProvider attractionsProvider;
 
-    public SpotService(PilgrimageSpotRepository spotRepository) {
+    public SpotService(PilgrimageSpotRepository spotRepository, NearbyAttractionsProvider attractionsProvider) {
         this.spotRepository = spotRepository;
+        this.attractionsProvider = attractionsProvider;
+    }
+
+    public NearbyAttractionsResponse findNearbyAttractions(Long spotId) {
+        throw new UnsupportedOperationException("not implemented yet");
     }
 
     public SpotDetailResponse findSpot(Long spotId) {
