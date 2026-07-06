@@ -5,6 +5,7 @@ import com.sungjiduk.backend.auth.dto.request.SignupRequest;
 import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.properties.JwtProperties;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
+import com.sungjiduk.backend.common.security.service.TokenProvider;
 import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.user.repository.UserEmailRepository;
 import jakarta.servlet.http.Cookie;
@@ -54,6 +55,9 @@ class AuthControllerTests {
 
     @Autowired
     JwtProperties jwtProperties;
+
+    @Autowired
+    TokenProvider tokenProvider;
 
     // 로그인 성공 시 TokenProvider가 RefreshToken을 Redis에 저장하려고 하므로, 테스트에서는 Redis Repository만 가짜로 대체한다.
     @MockitoBean
@@ -297,6 +301,54 @@ class AuthControllerTests {
                 )
             // then
                 .andExpect(status().isForbidden());
+        }
+    }
+
+    @Nested
+    @DisplayName("내정보조회")
+    class Me {
+
+        @Test
+        @DisplayName("성공 - 유효한 Access Token이면 내 정보를 반환한다")
+        void 내정보조회_유효한토큰() throws Exception {
+            // given
+            User savedUser = userEmailRepository.userSave(User.builder()
+                .email("auth-controller-me-success@gmail.com")
+                .passwordHash(passwordEncoder.encode("tjdwlejr1234"))
+                .nickname("내정보유저")
+                .build());
+            String accessToken = tokenProvider.issueKeyPair(savedUser.getEmail(), savedUser.getRole()).accessToken();
+
+            // when
+            mockMvc.perform(
+                    MockMvcRequestBuilders
+                        .get(BASE_URL + "/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                )
+                // then
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(savedUser.getId()))
+                .andExpect(jsonPath("$.data.email").value(savedUser.getEmail()))
+                .andExpect(jsonPath("$.data.nickname").value(savedUser.getNickname()))
+                .andExpect(jsonPath("$.data.travel_style").doesNotExist())
+                .andExpect(jsonPath("$.data.budget_level").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("실패 - 유효하지 않은 Access Token이면 401 반환")
+        void 내정보조회_유효하지않은토큰() throws Exception {
+            // when
+            mockMvc.perform(
+                    MockMvcRequestBuilders
+                        .get(BASE_URL + "/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token")
+                )
+                // then
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(ErrorCode.ABNORMAL_TOKEN.name()))
+                .andExpect(jsonPath("$.error.message").value(ErrorCode.ABNORMAL_TOKEN.getDescription()));
         }
     }
 }
