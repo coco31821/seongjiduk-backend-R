@@ -64,7 +64,8 @@ class SpotImportServiceTest {
     }
 
     private AnitabiPoint point(String id, String name, double lat, double lng, String ep) {
-        return new AnitabiPoint(id, name, List.of(lat, lng), ep, "Google Maps", "https://maps.example/" + id);
+        return new AnitabiPoint(id, name, List.of(lat, lng), ep, "Google Maps",
+                "https://maps.example/" + id, "https://image.anitabi.cn/points/" + id + ".jpg?plan=h160");
     }
 
     @Nested
