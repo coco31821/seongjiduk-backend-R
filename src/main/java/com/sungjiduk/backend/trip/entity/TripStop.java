@@ -1,5 +1,7 @@
 package com.sungjiduk.backend.trip.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -62,6 +64,8 @@ public class TripStop {
     /** AI가 생성한 방문 이유. 로컬 폴백 배치에서는 null. */
     @Column(length = 500)
     private String reason;
+
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     @Builder
     private TripStop(SpotType spotType, Long pilgrimageSpotId, Long nearbyAttractionId,

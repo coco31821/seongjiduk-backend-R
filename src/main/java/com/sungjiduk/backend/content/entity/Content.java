@@ -3,6 +3,7 @@ package com.sungjiduk.backend.content.entity;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -64,7 +65,7 @@ public class Content {
 
 //  @OneToMany(mappedBy = "content")
 //  private List<UserFavoriteContent> UserFavoriteContents = new ArrayList<>();
-
+    @Builder
     private Content(String title, String category, String country, String description) {
         this.title = title;
         this.category = category;
