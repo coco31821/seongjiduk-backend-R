@@ -1,8 +1,8 @@
 package com.sungjiduk.backend.spot.infra;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -10,22 +10,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Google Places Nearby Search 기반 주변 관광 명소.
- * env {@code GOOGLE_MAPS_API_KEY}(Places API 활성화 필요)가 없거나 실패하면 빈 리스트.
+ * Google <b>Places API (New)</b> searchNearby 기반 주변 관광 명소.
+ * (레거시 nearbysearch는 신규 프로젝트에서 차단 — REQUEST_DENIED 실측)
+ * env {@code GOOGLE_MAPS_API_KEY}(Places API (New) 활성화 + billing)가 없거나 실패하면 빈 리스트.
  */
 @Component
 public class GooglePlacesProvider implements NearbyAttractionsProvider {
 
     private static final int RADIUS_METERS = 900;
-    private static final Map<String, String> TYPE_LABELS = Map.of(
-            "tourist_attraction", "명소",
-            "shrine", "신사",
-            "temple", "사찰",
-            "park", "공원",
-            "museum", "박물관",
-            "shopping_mall", "쇼핑",
-            "amusement_park", "놀이공원"
-    );
+    private static final String FIELD_MASK =
+            "places.displayName,places.rating,places.userRatingCount,places.location,"
+                    + "places.googleMapsUri,places.primaryTypeDisplayName";
 
     private final String apiKey;
     private final RestClient restClient;
@@ -33,7 +28,7 @@ public class GooglePlacesProvider implements NearbyAttractionsProvider {
     public GooglePlacesProvider(@Value("${seongjiduk.geocoding.google.api-key:}") String apiKey) {
         this.apiKey = apiKey;
         this.restClient = RestClient.builder()
-                .baseUrl("https://maps.googleapis.com")
+                .baseUrl("https://places.googleapis.com")
                 .build();
     }
 
@@ -43,67 +38,59 @@ public class GooglePlacesProvider implements NearbyAttractionsProvider {
             return List.of();
         }
         try {
-            PlacesResponse response = restClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/maps/api/place/nearbysearch/json")
-                            .queryParam("location", lat + "," + lng)
-                            .queryParam("radius", RADIUS_METERS)
-                            .queryParam("type", "tourist_attraction")
-                            .queryParam("language", "ko")
-                            .queryParam("key", apiKey)
-                            .build())
+            SearchNearbyResponse response = restClient.post()
+                    .uri("/v1/places:searchNearby")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("X-Goog-Api-Key", apiKey)
+                    .header("X-Goog-FieldMask", FIELD_MASK)
+                    .body(Map.of(
+                            "includedTypes", List.of("tourist_attraction"),
+                            "maxResultCount", 20,
+                            "languageCode", "ko",
+                            "locationRestriction", Map.of("circle", Map.of(
+                                    "center", Map.of("latitude", lat, "longitude", lng),
+                                    "radius", RADIUS_METERS))))
                     .retrieve()
-                    .body(PlacesResponse.class);
-            if (response == null || response.results() == null || !"OK".equals(response.status())) {
+                    .body(SearchNearbyResponse.class);
+            if (response == null || response.places() == null) {
                 return List.of();
             }
-            return response.results().stream()
-                    .filter(r -> r.name() != null && r.geometry() != null)
-                    .map(r -> new Attraction(
-                            r.name(),
-                            label(r.types()),
-                            r.rating(),
-                            r.userRatingsTotal(),
-                            r.geometry().location().lat(),
-                            r.geometry().location().lng(),
-                            "https://www.google.com/maps/place/?q=place_id:" + r.placeId()))
+            return response.places().stream()
+                    .filter(p -> p.displayName() != null && p.location() != null)
+                    .map(p -> new Attraction(
+                            p.displayName().text(),
+                            p.primaryTypeDisplayName() == null ? "명소" : p.primaryTypeDisplayName().text(),
+                            p.rating(),
+                            p.userRatingCount(),
+                            p.location().latitude(),
+                            p.location().longitude(),
+                            p.googleMapsUri()))
                     .toList();
         } catch (RuntimeException e) {
             return List.of();
         }
     }
 
-    private String label(List<String> types) {
-        if (types == null) {
-            return "명소";
-        }
-        return types.stream()
-                .map(TYPE_LABELS::get)
-                .filter(l -> l != null)
-                .findFirst()
-                .orElse("명소");
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record SearchNearbyResponse(List<Place> places) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record PlacesResponse(String status, List<PlaceResult> results) {
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private record PlaceResult(
-            String name,
+    private record Place(
+            LocalizedText displayName,
+            LocalizedText primaryTypeDisplayName,
             Double rating,
-            @JsonProperty("user_ratings_total") Integer userRatingsTotal,
-            @JsonProperty("place_id") String placeId,
-            List<String> types,
-            Geometry geometry
+            Integer userRatingCount,
+            LatLng location,
+            String googleMapsUri
     ) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record Geometry(LatLng location) {
+    private record LocalizedText(String text) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record LatLng(double lat, double lng) {
+    private record LatLng(double latitude, double longitude) {
     }
 }
