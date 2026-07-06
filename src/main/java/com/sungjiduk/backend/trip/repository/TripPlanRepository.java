@@ -1,5 +1,6 @@
 package com.sungjiduk.backend.trip.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import com.sungjiduk.backend.trip.entity.TripPlan;
@@ -7,13 +8,19 @@ import com.sungjiduk.backend.trip.entity.TripPlan;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface TripPlanRepository extends JpaRepository<TripPlan, Long> {
-    @Query("""
-        SELECT p.contentId\s
-        FROM TripPlan p
-        GROUP BY p.contentId\s
-        ORDER BY COUNT(p.contentId)
-        DESC""")
-    List<Long> findFrequentContent(Pageable pageable);
+    @Query(
+        """
+        SELECT s.title
+        FROM TripPlan s
+        WHERE s.createdAt BETWEEN :start AND :end
+        GROUP BY s.title
+        ORDER BY COUNT(s.title) DESC""")
+    List<String> findMostFrequentTitleToday(
+        @Param("start") LocalDateTime start,
+        @Param("end") LocalDateTime end,
+        Pageable pageable
+    );
 }

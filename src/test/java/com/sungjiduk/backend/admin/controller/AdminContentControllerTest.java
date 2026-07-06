@@ -17,9 +17,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.sungjiduk.backend.admin.dto.request.AdminContentUpsertRequest;
-import com.sungjiduk.backend.admin.dto.request.AdminSpotUpsertRequest;
 import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
-import com.sungjiduk.backend.admin.exception.ContentNotFoundException;
 import com.sungjiduk.backend.admin.service.AdminContentService;
 
 @DisplayName("AdminContentController")
@@ -77,7 +75,6 @@ class AdminContentControllerTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(contentJson)
                     .with(csrf()))
-
                 // then
                 .andExpect((status().isUnauthorized()));
         }

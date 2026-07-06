@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class TripService {
@@ -39,8 +40,22 @@ public class TripService {
                 .status(TripStatus.DRAFT)
                 .build();
 
+        layoutRoute(plan, request.selectedSpotIds(), request.excludedSpotIds());
+
+        TripPlan saved = tripPlanRepository.save(plan);
+        return toResponse(saved);
+    }
+
+    /**
+     * 선택 스팟을 여행 일수에 맞춰 Day별로 라운드로빈 분배해 배치한다(로컬 규칙).
+     * 기존 Day는 비우고 다시 채우므로 generate/regenerate가 공유한다.
+     * (추후 이 자리를 ai-service/LangGraph 호출로 교체)
+     */
+    private void layoutRoute(TripPlan plan, List<Long> selectedSpotIds, List<Long> excludedSpotIds) {
+        plan.getDays().clear();
+
         List<TripDay> days = new ArrayList<>();
-        for (int dayNo = 1; dayNo <= request.durationDays(); dayNo++) {
+        for (int dayNo = 1; dayNo <= plan.getDurationDays(); dayNo++) {
             TripDay day = TripDay.builder()
                     .dayNo(dayNo)
                     .summary("Day " + dayNo + " 성지순례")
@@ -49,8 +64,8 @@ public class TripService {
             days.add(day);
         }
 
-        Set<Long> excluded = request.excludedSpotIds() == null ? Set.of() : new HashSet<>(request.excludedSpotIds());
-        List<Long> spotIds = (request.selectedSpotIds() == null ? List.<Long>of() : request.selectedSpotIds())
+        Set<Long> excluded = excludedSpotIds == null ? Set.of() : new HashSet<>(excludedSpotIds);
+        List<Long> spotIds = (selectedSpotIds == null ? List.<Long>of() : selectedSpotIds)
                 .stream()
                 .filter(id -> !excluded.contains(id))
                 .toList();
@@ -65,9 +80,6 @@ public class TripService {
                     .stayMinutes(30)
                     .build());
         }
-
-        TripPlan saved = tripPlanRepository.save(plan);
-        return toResponse(saved);
     }
 
     private TripResponse toResponse(TripPlan plan) {
@@ -91,8 +103,12 @@ public class TripService {
         return new TripResponse(plan.getId(), plan.getTitle(), days, plan.getShareToken());
     }
 
+    @Transactional
     public TripResponse regenerate(Long tripId, TripGenerateRequest request) {
-        return mockTrip(tripId, request.durationDays());
+        TripPlan plan = tripPlanRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+        layoutRoute(plan, request.selectedSpotIds(), request.excludedSpotIds());
+        return toResponse(plan);
     }
 
     public TripSummaryResponse save(Long tripId) {
@@ -121,31 +137,19 @@ public class TripService {
         return toResponse(plan);
     }
 
+    @Transactional
     public void delete(Long tripId) {
+        TripPlan plan = tripPlanRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+        tripPlanRepository.delete(plan);
     }
 
+    @Transactional
     public TripShareResponse share(Long tripId) {
-        return new TripShareResponse(tripId, "https://seongjiduk.example/trips/" + tripId, "러브라이브! 뮤즈 성지순례 2박 3일 루트");
-    }
-
-    private TripResponse mockTrip(Long tripId, int durationDays) {
-        return new TripResponse(
-                tripId,
-                "러브라이브! 뮤즈 " + durationDays + "일 성지순례",
-                List.of(new TripResponse.DayPlan(
-                        1,
-                        "아키하바라 주변 성지 중심 일정",
-                        List.of(new TripResponse.Stop(
-                                1,
-                                "PILGRIMAGE",
-                                1L,
-                                "쇼헤이바시",
-                                "10:00",
-                                30,
-                                "작품 주요 장면과 연결된 대표 성지입니다."
-                        ))
-                )),
-                "러브라이브! 뮤즈 성지순례 루트"
-        );
+        TripPlan plan = tripPlanRepository.findById(tripId)
+                .orElseThrow(() -> new TripNotFoundException(tripId));
+        plan.assignShareToken(UUID.randomUUID().toString().replace("-", ""));
+        String shareUrl = "https://seongjiduk.example/share/" + plan.getShareToken();
+        return new TripShareResponse(plan.getId(), shareUrl, plan.getTitle() + " 공유");
     }
 }

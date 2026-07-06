@@ -21,6 +21,11 @@ services:
     networks:
       - seongjiduk
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
   ai-service:
     build:
       context: ${AI_SERVICE_CONTEXT:-../../../seongjiduk-ai}

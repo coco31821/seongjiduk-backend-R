@@ -2,6 +2,7 @@ package com.sungjiduk.backend.trip.service;
 
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
+import com.sungjiduk.backend.trip.dto.response.TripShareResponse;
 import com.sungjiduk.backend.trip.dto.response.TripSummaryResponse;
 import com.sungjiduk.backend.trip.entity.SpotType;
 import com.sungjiduk.backend.trip.entity.TripPlan;
@@ -224,6 +225,138 @@ class TripServiceTest {
 
             // when / then
             assertThatThrownBy(() -> tripService.save(missingTripId))
+                    .isInstanceOf(TripNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("delete는")
+    class Delete {
+
+        @Test
+        @DisplayName("저장된 일정을 삭제한다")
+        void deletesTrip() {
+            // given
+            TripPlan plan = tripPlanRepository.save(TripPlan.builder()
+                    .contentId(1L)
+                    .durationDays(2)
+                    .title("성지순례 2일 루트")
+                    .status(TripStatus.SAVED)
+                    .build());
+
+            // when
+            tripService.delete(plan.getId());
+
+            // then
+            assertThat(tripPlanRepository.findById(plan.getId())).isEmpty();
+        }
+
+        @Test
+        @DisplayName("없는 일정이면 TripNotFoundException을 던진다")
+        void throwsWhenTripNotFound() {
+            // given
+            Long missingTripId = 999L;
+
+            // when / then
+            assertThatThrownBy(() -> tripService.delete(missingTripId))
+                    .isInstanceOf(TripNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("share는")
+    class Share {
+
+        @Test
+        @DisplayName("일정에 shareToken을 발급하고 공유 응답을 반환한다")
+        void issuesShareTokenAndReturnsResponse() {
+            // given
+            TripPlan plan = tripPlanRepository.save(TripPlan.builder()
+                    .contentId(1L).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
+
+            // when
+            TripShareResponse response = tripService.share(plan.getId());
+
+            // then
+            assertThat(response.tripId()).isEqualTo(plan.getId());
+            String token = tripPlanRepository.findById(plan.getId()).orElseThrow().getShareToken();
+            assertThat(token).isNotBlank();
+            assertThat(response.shareUrl()).contains(token);
+        }
+
+        @Test
+        @DisplayName("같은 일정을 다시 공유해도 토큰이 유지된다")
+        void keepsSameTokenOnReshare() {
+            // given
+            TripPlan plan = tripPlanRepository.save(TripPlan.builder()
+                    .contentId(1L).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
+
+            // when
+            tripService.share(plan.getId());
+            String firstToken = tripPlanRepository.findById(plan.getId()).orElseThrow().getShareToken();
+            tripService.share(plan.getId());
+            String secondToken = tripPlanRepository.findById(plan.getId()).orElseThrow().getShareToken();
+
+            // then
+            assertThat(firstToken).isNotBlank();
+            assertThat(secondToken).isEqualTo(firstToken);
+        }
+
+        @Test
+        @DisplayName("없는 일정이면 TripNotFoundException을 던진다")
+        void throwsWhenTripNotFound() {
+            // given
+            Long missingTripId = 999L;
+
+            // when / then
+            assertThatThrownBy(() -> tripService.share(missingTripId))
+                    .isInstanceOf(TripNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("regenerate는")
+    class Regenerate {
+
+        @Test
+        @DisplayName("기존 일정에 추가/제외 스팟을 반영해 재배치한다")
+        void reflectsAddedAndExcludedSpots() {
+            // given
+            TripResponse created = tripService.generate(new TripGenerateRequest(
+                    1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L, 20L), List.of()));
+
+            // when — 30 추가, 20 제외
+            TripResponse result = tripService.regenerate(created.tripId(), new TripGenerateRequest(
+                    1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L, 20L, 30L), List.of(20L)));
+
+            // then
+            assertThat(result.tripId()).isEqualTo(created.tripId());
+            List<Long> responseSpotIds = result.days().stream()
+                    .flatMap(day -> day.stops().stream())
+                    .map(TripResponse.Stop::spotId)
+                    .toList();
+            assertThat(responseSpotIds).containsExactlyInAnyOrder(10L, 30L);
+
+            List<Long> persistedSpotIds = tripPlanRepository.findById(created.tripId()).orElseThrow()
+                    .getDays().stream()
+                    .flatMap(day -> day.getStops().stream())
+                    .map(TripStop::getPilgrimageSpotId)
+                    .toList();
+            assertThat(persistedSpotIds).containsExactlyInAnyOrder(10L, 30L);
+        }
+
+        @Test
+        @DisplayName("없는 일정이면 TripNotFoundException을 던진다")
+        void throwsWhenTripNotFound() {
+            // given
+            TripGenerateRequest request = new TripGenerateRequest(
+                    1L, 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L), List.of());
+
+            // when / then
+            assertThatThrownBy(() -> tripService.regenerate(999L, request))
                     .isInstanceOf(TripNotFoundException.class);
         }
     }

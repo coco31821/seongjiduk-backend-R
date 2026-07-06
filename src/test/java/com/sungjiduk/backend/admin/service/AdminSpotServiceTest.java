@@ -1,6 +1,9 @@
 package com.sungjiduk.backend.admin.service;
 
 import static org.assertj.core.api.AssertionsForClassTypes.*;
+
+import java.math.BigDecimal;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -30,7 +33,6 @@ public class AdminSpotServiceTest {
     void create_content() {
         contentRepository.save(
             Content.builder()
-                .id(1L)
                 .title("러브라이브")
                 .category("ANIME")
                 .country("JAPAN")
@@ -53,8 +55,8 @@ public class AdminSpotServiceTest {
                 "LH 기업지원허브",
                 "성남시",
                 "대왕판교로 815",
-                123.456,
-                986.543,
+                new BigDecimal("123.456"),
+                new BigDecimal("123.456"),
                 60,
                 "http://reference.url"
             );
@@ -78,8 +80,8 @@ public class AdminSpotServiceTest {
                 "LH 기업지원허브",
                 "성남시",
                 "대왕판교로 815",
-                123.456,
-                986.543,
+                new BigDecimal("123.456"),
+                new BigDecimal("123.456"),
                 60,
                 "http://reference.url"
             );
