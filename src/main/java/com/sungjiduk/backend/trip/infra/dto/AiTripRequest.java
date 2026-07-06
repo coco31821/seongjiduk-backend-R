@@ -10,7 +10,8 @@ public record AiTripRequest(
         Conditions conditions,
         List<CandidateSpot> candidateSpots,
         List<Long> selectedSpotIds,
-        List<Long> excludedSpotIds
+        List<Long> excludedSpotIds,
+        String instruction
 ) {
 
     public record Content(Long id, String title) {
