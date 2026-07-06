@@ -81,7 +81,8 @@ public class ContentService {
                             spot.getRecommendedDurationMin(),
                             spot.getReferenceUrl(),
                             description == null ? null : description.sceneDescription(),
-                            description == null ? null : description.specialPoint());
+                            description == null ? null : description.specialPoint(),
+                            null);
                 })
                 .toList();
         return new ContentSpotsResponse(content.getId(), content.getTitle(), summaries);
