@@ -161,6 +161,27 @@ class SpotImportServiceTest {
         }
 
         @Test
+        @DisplayName("애니 장면 이미지 URL을 별도 SpotReference로 남긴다")
+        void savesSceneImageReference() {
+            // given
+            Content content = savedContent();
+            given(anitabiClient.fetchWork(49294L)).willReturn(new AnitabiWork("러브라이브!", "千代田区"));
+            given(anitabiClient.fetchPoints(49294L)).willReturn(List.of(
+                    point("p1", "とんかつ屋さん", 35.7002, 139.7706, "9")
+            ));
+            given(reverseGeocoder.reverse(anyDouble(), anyDouble())).willReturn(Optional.empty());
+
+            // when
+            spotImportService.importSpots(content.getId(), 49294L);
+
+            // then
+            PilgrimageSpot spot = spotRepository.findByContentAndName(content, "とんかつ屋さん").orElseThrow();
+            SpotReference imageReference =
+                    referenceRepository.findBySpotAndSourceName(spot, "Anitabi:scene-image").orElseThrow();
+            assertThat(imageReference.getUrl()).isEqualTo("https://image.anitabi.cn/points/p1.jpg?plan=h160");
+        }
+
+        @Test
         @DisplayName("존재하지 않는 content면 CONTENT_NOT_FOUND 예외를 던진다")
         void throwsWhenContentMissing() {
             // given
