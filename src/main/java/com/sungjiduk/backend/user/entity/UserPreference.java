@@ -1,6 +1,5 @@
 package com.sungjiduk.backend.user.entity;
 
-import com.sungjiduk.backend.content.entity.Content;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -11,7 +10,6 @@ import lombok.NoArgsConstructor;
     USER_PREFERENCE {
       bigint id PK
       bigint user_id FK
-      bigint favorite_content_id FK
       string travel_style
       string budget_level
     }
@@ -36,29 +34,23 @@ public class UserPreference {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "favorite_content_id")
-    private Content favoriteContent;
-
     @Column(name = "travel_style", length = 50)
     private String travelStyle;
 
     @Column(name = "budget_level", length = 30)
     private String budgetLevel;
 
-    private UserPreference(User user, Content favoriteContent, String travelStyle, String budgetLevel) {
+    private UserPreference(User user, String travelStyle, String budgetLevel) {
         this.user = user;
-        this.favoriteContent = favoriteContent;
         this.travelStyle = travelStyle;
         this.budgetLevel = budgetLevel;
     }
 
-    public static UserPreference create(User user, Content favoriteContent, String travelStyle, String budgetLevel) {
-        return new UserPreference(user, favoriteContent, travelStyle, budgetLevel);
+    public static UserPreference create(User user, String travelStyle, String budgetLevel) {
+        return new UserPreference(user, travelStyle, budgetLevel);
     }
 
-    public void update(Content favoriteContent, String travelStyle, String budgetLevel) {
-        this.favoriteContent = favoriteContent;
+    public void update(String travelStyle, String budgetLevel) {
         this.travelStyle = travelStyle;
         this.budgetLevel = budgetLevel;
     }
