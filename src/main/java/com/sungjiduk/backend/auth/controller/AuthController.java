@@ -3,17 +3,20 @@ package com.sungjiduk.backend.auth.controller;
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
 import com.sungjiduk.backend.auth.dto.response.LoginResponse;
+import com.sungjiduk.backend.auth.dto.response.MeResponse;
 import com.sungjiduk.backend.auth.dto.response.UserSummaryResponse;
 import com.sungjiduk.backend.auth.service.AuthService;
 import com.sungjiduk.backend.common.api.ApiResponse;
 import com.sungjiduk.backend.common.constants.SuccessCode;
 import com.sungjiduk.backend.common.properties.JwtProperties;
+import com.sungjiduk.backend.user.entity.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -86,7 +89,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ApiResponse<UserSummaryResponse> me() {
-        return ApiResponse.ok(authService.me());
+    public ApiResponse<MeResponse> me(@AuthenticationPrincipal CurrentUser currentUser) {
+        return ApiResponse.ok(authService.me(currentUser.getId()));
     }
 }
