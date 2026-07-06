@@ -10,10 +10,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 
 import com.sungjiduk.backend.admin.dto.request.AdminSpotUpsertRequest;
 import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
 import com.sungjiduk.backend.admin.exception.ContentNotFoundException;
+import com.sungjiduk.backend.common.config.SecurityConfig;
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
 

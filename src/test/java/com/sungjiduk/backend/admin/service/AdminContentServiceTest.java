@@ -7,15 +7,18 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 
 import com.sungjiduk.backend.admin.dto.request.AdminContentUpsertRequest;
 import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
+import com.sungjiduk.backend.common.config.SecurityConfig;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @SpringBootTest
 @DisplayName("AdminContentService")
+@Import(SecurityConfig.class)
 public class AdminContentServiceTest {
     @Autowired
     AdminContentService adminContentService;

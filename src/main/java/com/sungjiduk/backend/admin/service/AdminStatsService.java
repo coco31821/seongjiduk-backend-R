@@ -2,9 +2,10 @@ package com.sungjiduk.backend.admin.service;
 
 import com.sungjiduk.backend.admin.dto.response.AdminStatsOverviewResponse;
 import com.sungjiduk.backend.admin.dto.response.StatsSeriesResponse;
-import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.event.repository.UsageEventRepository;
+import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
+import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import com.sungjiduk.backend.trip.repository.TripPlanRepository;
 import com.sungjiduk.backend.trip.repository.TripStopRepository;
 import com.sungjiduk.backend.user.repository.UserRepository;
@@ -27,8 +28,8 @@ public class AdminStatsService {
     private final UserRepository userRepository;
     private final UsageEventRepository usageEventRepository;
     private final TripPlanRepository tripPlanRepository;
-    private final ContentRepository contentRepository;
     private final TripStopRepository tripStopRepository;
+    private final PilgrimageSpotRepository pilgrimageSpotRepository;
 
     public AdminStatsOverviewResponse overview() throws NoSuchElementException {
         long userTotalCount = userRepository.count();
@@ -47,22 +48,23 @@ public class AdminStatsService {
             topContentToday = ContentTodayList.getFirst();
         }
 
-        List<Long> SpotTodayList = null; //tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
+        List<Long> SpotTodayList = tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
         String topSpotToday;
 
-        if (SpotTodayList == null) {
+        if (SpotTodayList.isEmpty()) {
             topSpotToday = "아직 집계된 성지가 없습니다";
         }
 
         else {
            Long id = SpotTodayList.getFirst();
-            Optional<Content> optionalContent = contentRepository.findById(id);
+            Optional<PilgrimageSpot> optionalPilgrimageSpot = pilgrimageSpotRepository.findById(id);
 
-            if (optionalContent.isEmpty()) {
+
+            if (optionalPilgrimageSpot.isEmpty()) {
                 throw new NoSuchElementException();
             }
 
-            topSpotToday = optionalContent.get().getTitle();
+            topSpotToday = optionalPilgrimageSpot.get().getName();
         }
 
         return new AdminStatsOverviewResponse(

@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
 import com.sungjiduk.backend.trip.entity.TripStop;
 
 public interface TripStopRepository extends JpaRepository<TripStop, Long> {
-    /*@Query(
+    @Query(
         """
         SELECT s.pilgrimageSpotId
         FROM TripStop s
@@ -22,5 +22,5 @@ public interface TripStopRepository extends JpaRepository<TripStop, Long> {
         @Param("start") LocalDateTime start,
         @Param("end") LocalDateTime end,
         Pageable pageable
-    ); */
+    );
 }

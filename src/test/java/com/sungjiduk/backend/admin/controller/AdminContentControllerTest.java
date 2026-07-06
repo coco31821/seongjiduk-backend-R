@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -20,11 +21,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.sungjiduk.backend.admin.dto.request.AdminContentUpsertRequest;
 import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
 import com.sungjiduk.backend.admin.service.AdminContentService;
+import com.sungjiduk.backend.common.config.SecurityConfig;
 import com.sungjiduk.backend.common.security.service.TokenProvider;
 import com.sungjiduk.backend.user.service.UserService;
 
 @DisplayName("AdminContentController")
 @WebMvcTest(AdminContentController.class)
+@Import(SecurityConfig.class)
 class AdminContentControllerTest {
     @Autowired
     private MockMvc mockMvc;
@@ -85,7 +88,7 @@ class AdminContentControllerTest {
                     .content(contentJson)
                     .with(csrf()))
                 // then
-                .andExpect((status().isUnauthorized()));
+                .andExpect((status().isForbidden()));
         }
 
         @Test
@@ -102,7 +105,7 @@ class AdminContentControllerTest {
                     .content(contentJson)
                     .with(csrf()))
                 // then
-                .andExpect((status().isUnauthorized()));
+                .andExpect((status().isForbidden()));
         }
     }
 

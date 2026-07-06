@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -22,10 +23,12 @@ import com.sungjiduk.backend.admin.dto.response.AdminCommandResponse;
 import com.sungjiduk.backend.admin.exception.ContentNotFoundException;
 import com.sungjiduk.backend.admin.service.AdminContentService;
 import com.sungjiduk.backend.admin.service.AdminSpotService;
+import com.sungjiduk.backend.common.config.SecurityConfig;
 import com.sungjiduk.backend.common.security.service.TokenProvider;
 import com.sungjiduk.backend.user.service.UserService;
 
 @DisplayName("AdminSpotController")
+@Import(SecurityConfig.class)
 @WebMvcTest(AdminSpotController.class)
 class AdminSpotControllerTest {
     @Autowired
@@ -107,7 +110,7 @@ class AdminSpotControllerTest {
                     .with(csrf()))
 
                 // then
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
         }
 
         @Test
@@ -138,7 +141,7 @@ class AdminSpotControllerTest {
                     .with(csrf()))
 
                 // then
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
         }
 
         @Test
