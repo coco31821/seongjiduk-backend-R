@@ -56,8 +56,16 @@ public class AiRouteVerifyClient {
             int usedPostCount,
             List<SpotMention> spotMentions,
             List<VerifiedPair> verifiedPairs,
-            List<VerifiedCourse> courses
+            List<VerifiedCourse> courses,
+            List<SpotTips> spotTips
     ) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public record SpotTips(Long spotId, List<Tip> tips) {
+            @JsonIgnoreProperties(ignoreUnknown = true)
+            public record Tip(String tip, Integer postIndex) {
+            }
+        }
+
         @JsonIgnoreProperties(ignoreUnknown = true)
         public record VerifiedCourse(int rank, List<Long> spotIds, int supportCount, List<Integer> postIndexes) {
         }

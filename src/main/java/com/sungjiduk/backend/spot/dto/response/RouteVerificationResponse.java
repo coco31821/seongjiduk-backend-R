@@ -10,8 +10,15 @@ public record RouteVerificationResponse(
         int usedPostCount,
         List<SpotMention> spotMentions,
         List<VerifiedPair> verifiedPairs,
-        List<VerifiedCourse> courses
+        List<VerifiedCourse> courses,
+        List<SpotTips> spotTips
 ) {
+    /** 스팟별 여행자 팁 (블로그 추출, 최신 우선 최대 2) — 출처 포함 */
+    public record SpotTips(Long spotId, List<TipEntry> tips) {
+        public record TipEntry(String tip, Source source) {
+        }
+    }
+
     /** 후기 출처 (제목·링크·작성일) — 코스·언급이 공유한다. */
     public record Source(String title, String link, String postdate) {
     }
@@ -32,6 +39,6 @@ public record RouteVerificationResponse(
     }
 
     public static RouteVerificationResponse unavailable(Long contentId) {
-        return new RouteVerificationResponse(contentId, false, 0, 0, List.of(), List.of(), List.of());
+        return new RouteVerificationResponse(contentId, false, 0, 0, List.of(), List.of(), List.of(), List.of());
     }
 }

@@ -99,7 +99,7 @@ class RouteVerificationServiceTest {
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
                     "openai", 2, 2,
                     List.of(new VerifyResult.SpotMention(1L, 2, List.of())),
-                    List.of(new VerifyResult.VerifiedPair(1L, 2L, 2)), List.of()));
+                    List.of(new VerifyResult.VerifiedPair(1L, 2L, 2)), List.of(), List.of()));
 
             // when
             RouteVerificationResponse response = routeVerificationService.verify(content.getId());
@@ -124,7 +124,7 @@ class RouteVerificationServiceTest {
             given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
                     "openai", 2, 2, List.of(), List.of(),
-                    List.of(new VerifyResult.VerifiedCourse(1, List.of(5L, 6L), 2, List.of(0, 1)))));
+                    List.of(new VerifyResult.VerifiedCourse(1, List.of(5L, 6L), 2, List.of(0, 1))), List.of()));
 
             // when
             RouteVerificationResponse response = routeVerificationService.verify(content.getId());
@@ -147,7 +147,7 @@ class RouteVerificationServiceTest {
                     new NaverBlogClient.BlogItem("후기1", "https://blog.naver.com/a/1", "20260701")));
             given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
-                    "openai", 1, 1, List.of(), List.of(new VerifyResult.VerifiedPair(1L, 2L, 1)), List.of()));
+                    "openai", 1, 1, List.of(), List.of(new VerifyResult.VerifiedPair(1L, 2L, 1)), List.of(), List.of()));
 
             // when
             routeVerificationService.verify(content.getId());
@@ -172,7 +172,7 @@ class RouteVerificationServiceTest {
             given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
                     "openai", 1, 1, List.of(), List.of(),
-                    List.of(new VerifyResult.VerifiedCourse(1, List.of(5L, 6L), 1, List.of(0)))));
+                    List.of(new VerifyResult.VerifiedCourse(1, List.of(5L, 6L), 1, List.of(0))), List.of()));
             routeVerificationService.verify(content.getId());
 
             // when / then — 랭킹 순 코스 스팟 시퀀스
@@ -193,7 +193,7 @@ class RouteVerificationServiceTest {
                     new NaverBlogClient.BlogItem("추가후기", "https://blog.naver.com/extra/2", "20260702")));
             given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
-                    "openai", 2, 2, List.of(), List.of(), List.of()));
+                    "openai", 2, 2, List.of(), List.of(), List.of(), List.of()));
 
             // when
             routeVerificationService.verify(content.getId());
@@ -218,7 +218,7 @@ class RouteVerificationServiceTest {
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
                     "openai", 2, 1,
                     List.of(new VerifyResult.SpotMention(1L, 2, List.of(0, 1))),
-                    List.of(), List.of()));
+                    List.of(), List.of(), List.of()));
 
             // when
             RouteVerificationResponse response = routeVerificationService.verify(content.getId());
@@ -229,6 +229,31 @@ class RouteVerificationServiceTest {
             assertThat(mention.count()).isEqualTo(2);
             assertThat(mention.sources()).extracting(RouteVerificationResponse.Source::title)
                     .containsExactly("최신후기", "감상평");
+        }
+
+        @Test
+        @DisplayName("스팟별 팁의 postIndex를 출처(제목·링크·날짜)로 매핑한다")
+        void mapsSpotTipSources() {
+            // given
+            Content content = savedContentWithSpot();
+            given(naverBlogClient.enabled()).willReturn(true);
+            given(naverBlogClient.search(anyString(), anyInt())).willReturn(List.of(
+                    new NaverBlogClient.BlogItem("팁후기", "https://blog.naver.com/tip/1", "20260701")));
+            given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
+            given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
+                    "openai", 1, 1, List.of(), List.of(), List.of(),
+                    List.of(new VerifyResult.SpotTips(1L,
+                            List.of(new VerifyResult.SpotTips.Tip("한정 에마는 오전에 소진된다", 0))))));
+
+            // when
+            RouteVerificationResponse response = routeVerificationService.verify(content.getId());
+
+            // then
+            assertThat(response.spotTips()).hasSize(1);
+            var tips = response.spotTips().get(0);
+            assertThat(tips.spotId()).isEqualTo(1L);
+            assertThat(tips.tips().get(0).tip()).isEqualTo("한정 에마는 오전에 소진된다");
+            assertThat(tips.tips().get(0).source().title()).isEqualTo("팁후기");
         }
 
         @Test

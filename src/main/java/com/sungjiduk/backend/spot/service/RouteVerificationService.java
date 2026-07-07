@@ -73,7 +73,7 @@ public class RouteVerificationService {
         }
         if (posts.isEmpty()) {
             return new RouteVerificationResponse(contentId, true, items.size(), 0,
-                    java.util.List.of(), java.util.List.of(), java.util.List.of());
+                    java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of());
         }
 
         try {
@@ -84,7 +84,7 @@ public class RouteVerificationService {
                     posts));
             if (result == null) {
                 return new RouteVerificationResponse(contentId, true, posts.size(), 0,
-                        java.util.List.of(), java.util.List.of(), java.util.List.of());
+                        java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of());
             }
             RouteVerificationResponse response = new RouteVerificationResponse(
                     contentId, true, result.postCount(), result.usedPostCount(),
@@ -97,6 +97,15 @@ public class RouteVerificationService {
                             .map(course -> new RouteVerificationResponse.VerifiedCourse(
                                     course.rank(), course.spotIds(), course.supportCount(),
                                     toSources(course.postIndexes(), posts)))
+                            .toList(),
+                    result.spotTips() == null ? java.util.List.of() : result.spotTips().stream()
+                            .map(spotTip -> new RouteVerificationResponse.SpotTips(
+                                    spotTip.spotId(),
+                                    spotTip.tips() == null ? java.util.List.<RouteVerificationResponse.SpotTips.TipEntry>of()
+                                            : spotTip.tips().stream()
+                                                    .map(tip -> new RouteVerificationResponse.SpotTips.TipEntry(
+                                                            tip.tip(), sourceAt(tip.postIndex(), posts)))
+                                                    .toList()))
                             .toList());
             if (response.usedPostCount() > 0) {
                 cache.put(contentId, response);
@@ -104,7 +113,7 @@ public class RouteVerificationService {
             return response;
         } catch (RuntimeException e) {
             return new RouteVerificationResponse(contentId, true, posts.size(), 0,
-                    java.util.List.of(), java.util.List.of(), java.util.List.of());
+                    java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of());
         }
     }
 
@@ -135,5 +144,16 @@ public class RouteVerificationService {
                     var post = posts.get(i);
                     return new RouteVerificationResponse.Source(post.title(), post.link(), post.postdate());
                 }).toList();
+    }
+
+    /** 단일 포스트 인덱스 → 출처 (범위 밖이면 null) */
+    private RouteVerificationResponse.Source sourceAt(
+            Integer postIndex,
+            java.util.List<AiRouteVerifyClient.VerifyRequest.BlogPost> posts) {
+        if (postIndex == null || postIndex < 0 || postIndex >= posts.size()) {
+            return null;
+        }
+        var post = posts.get(postIndex);
+        return new RouteVerificationResponse.Source(post.title(), post.link(), post.postdate());
     }
 }
