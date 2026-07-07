@@ -1,5 +1,9 @@
 package com.sungjiduk.backend.trip.service;
 
+import com.sungjiduk.backend.common.constants.ErrorCode;
+import com.sungjiduk.backend.common.exception.BusinessException;
+import com.sungjiduk.backend.content.entity.Content;
+import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
 import com.sungjiduk.backend.trip.dto.response.TripShareResponse;
@@ -24,14 +28,19 @@ import java.util.UUID;
 public class TripService {
 
     private final TripPlanRepository tripPlanRepository;
+    private final ContentRepository contentRepository;
 
-    public TripService(TripPlanRepository tripPlanRepository) {
+    public TripService(TripPlanRepository tripPlanRepository, ContentRepository contentRepository) {
         this.tripPlanRepository = tripPlanRepository;
+        this.contentRepository = contentRepository;
     }
 
     public TripResponse generate(TripGenerateRequest request) {
+        Content content = contentRepository.findById(request.contentId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTENT_NOT_FOUND));
+
         TripPlan plan = TripPlan.builder()
-                .contentId(request.contentId())
+                .content(content)
                 .durationDays(request.durationDays())
                 .startLocation(request.startLocation())
                 .budgetLevel(request.budgetLevel())

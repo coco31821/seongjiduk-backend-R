@@ -3,12 +3,9 @@ package com.sungjiduk.backend.content.controller;
 import com.sungjiduk.backend.common.api.ApiResponse;
 import com.sungjiduk.backend.content.dto.response.ContentDetailResponse;
 import com.sungjiduk.backend.content.dto.response.ContentSpotsResponse;
-import com.sungjiduk.backend.content.dto.response.ContentSummaryResponse;
+import com.sungjiduk.backend.content.dto.response.ContentListResponse;
 import com.sungjiduk.backend.content.service.ContentService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -23,8 +20,11 @@ public class ContentController {
     }
 
     @GetMapping
-    public ApiResponse<List<ContentSummaryResponse>> contents() {
-        return ApiResponse.ok(contentService.findContents());
+    public ApiResponse<List<ContentListResponse>> contents(
+        @RequestParam(required = false) String category,
+        @RequestParam(required = false) String country
+    ) {
+        return ApiResponse.ok(contentService.findContents(category,country));
     }
 
     @GetMapping("/{contentId}")
