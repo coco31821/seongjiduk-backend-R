@@ -11,6 +11,10 @@ import com.sungjiduk.backend.spot.infra.AiDescribeClient;
 import com.sungjiduk.backend.spot.infra.dto.AiDescribeResult;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import com.sungjiduk.backend.spot.service.RouteVerificationService;
+import com.sungjiduk.backend.user.entity.User;
+import com.sungjiduk.backend.user.repository.UserRepository;
+import com.sungjiduk.backend.common.constants.ErrorCode;
+import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.trip.infra.dto.AiTripRequest;
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
@@ -60,6 +64,11 @@ class TripServiceTest {
     private AiRequestLogRepository aiRequestLogRepository;
 
     @Autowired
+    private UserRepository userRepository;
+
+    private User member;
+
+    @Autowired
     private ContentRepository contentRepository;
 
     @Autowired
@@ -87,6 +96,14 @@ class TripServiceTest {
         willThrow(new RuntimeException("ai-service down")).given(aiTripClient).generate(any());
         willThrow(new RuntimeException("describe down")).given(aiDescribeClient).describe(any());
         content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "러브라이브! 설명"));
+        member = userRepository.save(User.builder()
+                .email("fan@example.com").passwordHash("hash").nickname("muse_fan").build());
+    }
+
+    private TripGenerateRequest defaultRequest() {
+        return new TripGenerateRequest(
+                content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                List.of(10L), List.of(), null, null, null);
     }
 
     @Nested
@@ -516,6 +533,87 @@ class TripServiceTest {
             var captor = org.mockito.ArgumentCaptor.forClass(AiTripRequest.class);
             org.mockito.BDDMockito.then(aiTripClient).should().generate(captor.capture());
             assertThat(captor.getValue().verifiedCourses()).containsExactly(List.of(5L, 6L));
+        }
+    }
+
+    @Nested
+    @DisplayName("Trip 소유권은")
+    class TripOwnership {
+
+        @Test
+        @DisplayName("로그인 사용자의 generate는 플랜과 AI 로그에 소유자를 세팅한다")
+        void generateSetsOwnerForAuthenticatedUser() {
+            // when
+            TripResponse response = tripService.generate(member.getId(), defaultRequest());
+
+            // then
+            TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
+            assertThat(saved.getUser().getId()).isEqualTo(member.getId());
+            assertThat(aiRequestLogRepository.findAll().get(0).getUser().getId()).isEqualTo(member.getId());
+        }
+
+        @Test
+        @DisplayName("비회원 generate는 소유자 없이 저장된다 (기존 동작 유지)")
+        void anonymousGenerateStaysUnowned() {
+            // when
+            TripResponse response = tripService.generate(null, defaultRequest());
+
+            // then
+            assertThat(tripPlanRepository.findById(response.tripId()).orElseThrow().isUnowned()).isTrue();
+        }
+
+        @Test
+        @DisplayName("findMyTrips는 내 일정만 반환한다")
+        void findMyTripsFiltersByOwner() {
+            // given
+            User other = userRepository.save(User.builder()
+                    .email("other@example.com").passwordHash("hash").nickname("other").build());
+            tripService.generate(member.getId(), defaultRequest());
+            tripService.generate(other.getId(), defaultRequest());
+            tripService.generate(null, defaultRequest()); // 비회원 플랜
+
+            // when
+            List<TripSummaryResponse> mine = tripService.findMyTrips(member.getId());
+
+            // then
+            assertThat(mine).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("save는 비회원 생성 플랜의 소유권을 가져온다 (로그인 후 이어서 저장 플로우)")
+        void saveClaimsUnownedPlan() {
+            // given
+            TripResponse created = tripService.generate(null, defaultRequest());
+
+            // when
+            tripService.save(member.getId(), created.tripId());
+
+            // then
+            assertThat(tripPlanRepository.findById(created.tripId()).orElseThrow()
+                    .isOwnedBy(member.getId())).isTrue();
+        }
+
+        @Test
+        @DisplayName("남의 플랜은 save·delete·share·regenerate 전부 FORBIDDEN")
+        void forbidsActionsOnOthersPlan() {
+            // given
+            User other = userRepository.save(User.builder()
+                    .email("other@example.com").passwordHash("hash").nickname("other").build());
+            TripResponse created = tripService.generate(other.getId(), defaultRequest());
+
+            // when / then
+            assertThatThrownBy(() -> tripService.save(member.getId(), created.tripId()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+            assertThatThrownBy(() -> tripService.delete(member.getId(), created.tripId()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+            assertThatThrownBy(() -> tripService.share(member.getId(), created.tripId()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+            assertThatThrownBy(() -> tripService.regenerate(member.getId(), created.tripId(), defaultRequest()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
         }
     }
 
