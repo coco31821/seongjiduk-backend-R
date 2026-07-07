@@ -7,8 +7,9 @@ CLAUDE.md
 AGENTS.md
 
 .env
-.env.*
+.env*
 !.env.example
+!.env.prod.example
 
 .gradle/
 build/
