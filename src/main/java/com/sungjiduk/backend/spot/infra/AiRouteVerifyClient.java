@@ -63,7 +63,7 @@ public class AiRouteVerifyClient {
         }
 
         @JsonIgnoreProperties(ignoreUnknown = true)
-        public record SpotMention(Long spotId, int count) {
+        public record SpotMention(Long spotId, int count, List<Integer> postIndexes) {
         }
 
         @JsonIgnoreProperties(ignoreUnknown = true)

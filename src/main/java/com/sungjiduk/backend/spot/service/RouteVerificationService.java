@@ -33,8 +33,10 @@ public class RouteVerificationService {
         this.aiRouteVerifyClient = aiRouteVerifyClient;
     }
 
-    private static final int SEARCH_COUNT = 25;
+    private static final int SEARCH_COUNT = 50;
     private static final int MAX_POSTS = 12;
+    /** 검색 recall 확대용 멀티 쿼리 — 결과는 링크 기준으로 합쳐 중복 제거한다. */
+    private static final java.util.List<String> QUERY_SUFFIXES = java.util.List.of(" 성지순례", " 성지 후기");
 
     /** 작품별 검증 결과 캐시 — 외부 API·LLM 비용 절약. 빈 결과(usedPostCount=0)는 캐시하지 않아 재시도 가능. */
     private final java.util.Map<Long, RouteVerificationResponse> cache = new java.util.concurrent.ConcurrentHashMap<>();
@@ -51,7 +53,10 @@ public class RouteVerificationService {
         // 한국 블로그는 한국어 표기를 쓰므로 koreanName 포함 목록(설명 캐시)을 재사용해 매칭률을 높인다
         var spots = contentService.findContentSpots(contentId).spots();
 
-        var items = new java.util.ArrayList<>(naverBlogClient.search(content.getTitle() + " 성지순례", SEARCH_COUNT));
+        var items = new java.util.ArrayList<NaverBlogClient.BlogItem>();
+        for (String suffix : QUERY_SUFFIXES) {
+            items.addAll(naverBlogClient.search(content.getTitle() + suffix, SEARCH_COUNT));
+        }
         // 최근 방문 후기 우선 (postdate desc) — 최신 코스가 상위로
         items.sort(java.util.Comparator.comparing(
                 (NaverBlogClient.BlogItem it) -> it.postdate() == null ? "" : it.postdate()).reversed());
@@ -84,20 +89,14 @@ public class RouteVerificationService {
             RouteVerificationResponse response = new RouteVerificationResponse(
                     contentId, true, result.postCount(), result.usedPostCount(),
                     result.spotMentions() == null ? java.util.List.of() : result.spotMentions().stream()
-                            .map(m -> new RouteVerificationResponse.SpotMention(m.spotId(), m.count())).toList(),
+                            .map(m -> new RouteVerificationResponse.SpotMention(
+                                    m.spotId(), m.count(), toSources(m.postIndexes(), posts))).toList(),
                     result.verifiedPairs() == null ? java.util.List.of() : result.verifiedPairs().stream()
                             .map(v -> new RouteVerificationResponse.VerifiedPair(v.fromSpotId(), v.toSpotId(), v.count())).toList(),
                     result.courses() == null ? java.util.List.of() : result.courses().stream()
                             .map(course -> new RouteVerificationResponse.VerifiedCourse(
                                     course.rank(), course.spotIds(), course.supportCount(),
-                                    course.postIndexes() == null ? java.util.List.<RouteVerificationResponse.VerifiedCourse.Source>of()
-                                            : course.postIndexes().stream()
-                                                    .filter(i -> i != null && i >= 0 && i < posts.size())
-                                                    .map(i -> {
-                                                        var post = posts.get(i);
-                                                        return new RouteVerificationResponse.VerifiedCourse.Source(
-                                                                post.title(), post.link(), post.postdate());
-                                                    }).toList()))
+                                    toSources(course.postIndexes(), posts)))
                             .toList());
             if (response.usedPostCount() > 0) {
                 cache.put(contentId, response);
@@ -107,5 +106,20 @@ public class RouteVerificationService {
             return new RouteVerificationResponse(contentId, true, posts.size(), 0,
                     java.util.List.of(), java.util.List.of(), java.util.List.of());
         }
+    }
+
+    /** ai가 준 포스트 인덱스를 출처(제목·링크·작성일)로 매핑한다. 범위 밖 인덱스는 무시. */
+    private java.util.List<RouteVerificationResponse.Source> toSources(
+            java.util.List<Integer> postIndexes,
+            java.util.List<AiRouteVerifyClient.VerifyRequest.BlogPost> posts) {
+        if (postIndexes == null) {
+            return java.util.List.of();
+        }
+        return postIndexes.stream()
+                .filter(i -> i != null && i >= 0 && i < posts.size())
+                .map(i -> {
+                    var post = posts.get(i);
+                    return new RouteVerificationResponse.Source(post.title(), post.link(), post.postdate());
+                }).toList();
     }
 }
