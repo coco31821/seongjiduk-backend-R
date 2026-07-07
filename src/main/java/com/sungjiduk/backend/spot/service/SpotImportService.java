@@ -75,7 +75,8 @@ public class SpotImportService {
                     city = geo.get().city();
                 } else {
                     address = point.name();
-                    city = work.city();
+                    // 극장판 등 원본 lite에 city가 없는 작품 대응 — NOT NULL 컬럼이라 '미상' 폴백
+                    city = work.city() == null || work.city().isBlank() ? "미상" : work.city();
                     geocodeFallback++;
                 }
 
