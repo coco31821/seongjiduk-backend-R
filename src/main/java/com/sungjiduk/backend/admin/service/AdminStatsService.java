@@ -2,6 +2,8 @@ package com.sungjiduk.backend.admin.service;
 
 import com.sungjiduk.backend.admin.dto.response.AdminStatsOverviewResponse;
 import com.sungjiduk.backend.admin.dto.response.StatsSeriesResponse;
+import com.sungjiduk.backend.content.entity.Content;
+import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.event.repository.UsageEventRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
@@ -28,6 +30,7 @@ public class AdminStatsService {
     private final UsageEventRepository usageEventRepository;
     private final TripPlanRepository tripPlanRepository;
     private final TripStopRepository tripStopRepository;
+    private final ContentRepository contentRepository;
     private final PilgrimageSpotRepository pilgrimageSpotRepository;
 
     public AdminStatsOverviewResponse overview() throws NoSuchElementException {
@@ -36,9 +39,19 @@ public class AdminStatsService {
         long todayTripPlanCount = tripPlanRepository.count();
         long AiRequestCount = 9999L; // Phase 2에서 구현 예정, AiRequestRepository
 
-        String topContentToday = getContentTitle(tripPlanRepository.findMostFrequentTitleToday(start(), end(), PageRequest.of(0, 1))); // 구현 수정 필요
+        String topContentToday = getContentTitle(
+            tripPlanRepository.findMostFrequentContentIdToday(
+                start(),
+                end(),
+                PageRequest.of(0, 1)
+            )
+        );
 
-        List<Long> spotTodayList = tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
+        List<Long> spotTodayList = tripStopRepository.findMostFrequentSpotToday(
+            start(),
+            end(),
+            PageRequest.of(0, 1)
+        );
 
         String topSpotToday = getSpotName(spotTodayList);
 
@@ -51,16 +64,21 @@ public class AdminStatsService {
             topSpotToday);
     }
 
-    private String getContentTitle(List<String> ContentTodayList) {
+    private String getContentTitle(List<Long> contentTodayList) {
         String topContentToday;
 
-        if (ContentTodayList.isEmpty()) {
+        if (contentTodayList.isEmpty()) {
             topContentToday = "아직 집계된 작품이 없습니다.";
         }
 
         else {
-            topContentToday = ContentTodayList.getFirst();
+            Optional<Content> optionalContent = contentRepository.findById(contentTodayList.getFirst());
+
+            Content content = optionalContent.orElseThrow(NoSuchElementException::new);
+
+            topContentToday = content.getTitle();
         }
+
         return topContentToday;
     }
 
@@ -101,7 +119,7 @@ public class AdminStatsService {
     public StatsSeriesResponse usage() {
         long totalTripPlanCount = tripPlanRepository.count();
         long todayTripPlanCount = tripPlanRepository.countTripPlanByCreatedAtBetween(start(), end());
-        String topContentToday = getContentTitle(tripPlanRepository.findMostFrequentTitleToday(start(), end(), PageRequest.of(0, 1)));
+        String topContentToday = getContentTitle(tripPlanRepository.findMostFrequentContentIdToday(start(), end(), PageRequest.of(0, 1)));
         List<Long> spotTodayList = tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
         String topSpotToday = getSpotName(spotTodayList);
 

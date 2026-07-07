@@ -13,12 +13,12 @@ import org.springframework.data.repository.query.Param;
 public interface TripPlanRepository extends JpaRepository<TripPlan, Long> {
     @Query(
         """
-        SELECT s.title
+        SELECT s.contentId
         FROM TripPlan s
         WHERE s.createdAt BETWEEN :start AND :end
-        GROUP BY s.title
-        ORDER BY COUNT(s.title) DESC""")
-    List<String> findMostFrequentTitleToday(
+        GROUP BY s.contentId
+        ORDER BY COUNT(s.contentId) DESC""")
+    List<Long> findMostFrequentContentIdToday(
         @Param("start") LocalDateTime start,
         @Param("end") LocalDateTime end,
         Pageable pageable

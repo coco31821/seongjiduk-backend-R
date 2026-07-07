@@ -11,6 +11,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.sungjiduk.backend.admin.dto.response.AdminStatsOverviewResponse;
 import com.sungjiduk.backend.common.config.SecurityConfig;
+import com.sungjiduk.backend.content.entity.Content;
+import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.event.repository.UsageEventRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
@@ -51,6 +53,9 @@ public class AdminStatsTest {
     @MockitoBean
     PilgrimageSpotRepository pilgrimageSpotRepository;
 
+    @MockitoBean
+    ContentRepository contentRepository;
+
     @Nested
     @DisplayName("overview는")
     class overview {
@@ -80,19 +85,34 @@ public class AdminStatsTest {
             void overview_normal() {
                 // given
                 given(userRepository.count()).willReturn(1L);
+
                 given(usageEventRepository.countUsageEventByOccurredAtBetween(
                     any(LocalDateTime.class),
                     any(LocalDateTime.class))
                 ).willReturn(1L);
+
                 given(tripPlanRepository.count()).willReturn(1L);
-                given(tripPlanRepository.findMostFrequentTitleToday(
+
+                given(tripPlanRepository.findMostFrequentContentIdToday(
                     any(LocalDateTime.class),
                     any(LocalDateTime.class),
-                    any(Pageable.class))).willReturn(new ArrayList<>(List.of("콜 오브 듀티 모던 워페어 2")));
+                    any(Pageable.class))).willReturn(new ArrayList<>(List.of(8L)));
+
+                given(contentRepository.findById(any(Long.class))).willReturn(
+                    Optional.of(Content.builder()
+                        .title("콜 오브 듀티 모던 워페어 2")
+                        .category("GAME")
+                        .country("미국")
+                        .description("망겜")
+                        .build()
+                    )
+                );
+
                 given(tripStopRepository.findMostFrequentSpotToday(
                     any(LocalDateTime.class),
                     any(LocalDateTime.class),
                     any(Pageable.class))).willReturn(new ArrayList<>(List.of(1L)));
+
                 given(pilgrimageSpotRepository.findById(any(Long.class))).willReturn(
                     Optional.ofNullable(PilgrimageSpot.builder()
                         .content(null)
@@ -123,19 +143,34 @@ public class AdminStatsTest {
             void overview_no_content() {
                 // given
                 given(userRepository.count()).willReturn(1L);
+
                 given(usageEventRepository.countUsageEventByOccurredAtBetween(
                     any(LocalDateTime.class),
                     any(LocalDateTime.class))
                 ).willReturn(1L);
+
                 given(tripPlanRepository.count()).willReturn(1L);
-                given(tripPlanRepository.findMostFrequentTitleToday(
+
+                given(tripPlanRepository.findMostFrequentContentIdToday(
                     any(LocalDateTime.class),
                     any(LocalDateTime.class),
-                    any(Pageable.class))).willReturn(new ArrayList<>(List.of("라스트 오브 어스 파트 2")));
+                    any(Pageable.class))).willReturn(new ArrayList<>(List.of(8L)));
+
+                given(contentRepository.findById(any(Long.class))).willReturn(
+                    Optional.of(Content.builder()
+                        .title("라스트 오브 어스 파트 2")
+                        .category("GAME")
+                        .country("미국")
+                        .description("아직 출시되지 않았습니다.")
+                        .build()
+                    )
+                );
+
                 given(tripStopRepository.findMostFrequentSpotToday(
                     any(LocalDateTime.class),
                     any(LocalDateTime.class),
                     any(Pageable.class))).willReturn(new ArrayList<>(List.of(1L)));
+
                 given(pilgrimageSpotRepository.findById(any(Long.class))).willReturn(Optional.empty());
 
                 // when

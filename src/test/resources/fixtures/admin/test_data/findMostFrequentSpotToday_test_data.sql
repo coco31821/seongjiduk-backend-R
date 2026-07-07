@@ -56,3 +56,5 @@ INSERT INTO trip_stop (id, trip_day_id, spot_type, pilgrimage_spot_id, nearby_at
 (48, 35, 'PILGRIMAGE', 7, NULL, 2, '19:00', 90, '2026-07-06 21:05:12'),
 (49, 36, 'PILGRIMAGE', 8, NULL, 1, '09:30', 60, '2026-07-06 22:30:00'),
 (50, 37, 'PILGRIMAGE', 9, NULL, 2, '12:00', 45, '2026-07-06 23:58:00');
+
+SET REFERENTIAL_INTEGRITY TRUE;
