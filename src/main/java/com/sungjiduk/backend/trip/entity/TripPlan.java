@@ -1,15 +1,8 @@
 package com.sungjiduk.backend.trip.entity;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
+import com.sungjiduk.backend.content.entity.Content;
+import com.sungjiduk.backend.user.entity.User;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,8 +14,7 @@ import java.util.List;
 
 /**
  * 여행 일정(루트)의 최상위 엔티티.
- * user_id / content_id 는 다른 도메인(A파트) 엔티티가 아직 없어
- * 결합을 피하려고 FK 객체가 아닌 Long 값으로 보관한다.
+ * content는 필수로 연결하고, user는 비회원 일정 생성을 위해 null을 허용한다.
  */
 @Entity
 @Table(name = "trip_plan")
@@ -35,11 +27,14 @@ public class TripPlan {
     private Long id;
 
     /** 비회원 생성 일정은 null 가능 */
-    @Column(name = "user_id")
-    private Long userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
-    @Column(name = "content_id", nullable = false)
-    private Long contentId;
+    // FK
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "content_id", nullable = false)
+    private Content content;
 
     @Column(nullable = false, length = 200)
     private String title;
@@ -72,11 +67,11 @@ public class TripPlan {
     private List<TripDay> days = new ArrayList<>();
 
     @Builder
-    private TripPlan(Long userId, Long contentId, String title, String startLocation,
+    private TripPlan(User user, Content content, String title, String startLocation,
                      int durationDays, String budgetLevel, String travelStyle,
                      TripStatus status, String shareToken) {
-        this.userId = userId;
-        this.contentId = contentId;
+        this.user = user;
+        this.content = content;
         this.title = title;
         this.startLocation = startLocation;
         this.durationDays = durationDays;

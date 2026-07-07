@@ -1,6 +1,7 @@
 package com.sungjiduk.backend.content.entity;
 
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
+import com.sungjiduk.backend.trip.entity.TripPlan;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -56,12 +57,12 @@ public class Content {
     @OneToMany(mappedBy = "content")
     private List<PilgrimageSpot> pilgrimageSpots = new ArrayList<>();
 
-//  @OneToMany(mappedBy = "content")
-//  private List<TripPlan> tripPlans = new ArrayList<>();
+    @OneToMany(mappedBy = "content")
+    private List<TripPlan> tripPlans = new ArrayList<>();
 
 //  @OneToMany(mappedBy = "content")
 //  private List<SpotReport> spotReports = new ArrayList<>();
-
+//
 //  @OneToMany(mappedBy = "content")
 //  private List<UserFavoriteContent> UserFavoriteContents = new ArrayList<>();
 
