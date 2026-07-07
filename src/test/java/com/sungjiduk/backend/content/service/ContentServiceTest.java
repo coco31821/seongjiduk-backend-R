@@ -89,6 +89,35 @@ class ContentServiceTest {
     }
 
     @Nested
+    @DisplayName("cachedRecommendedMinutes는")
+    class CachedRecommendedMinutes {
+
+        @Test
+        @DisplayName("describe 캐시가 있으면 AI 분을, 없으면 빈 값을 반환한다 (LLM 추가 호출 없음)")
+        void readsCacheWithoutTriggeringDescribe() {
+            // given
+            Content content = saveContent("러브라이브!");
+            PilgrimageSpot spot = spotRepository.save(PilgrimageSpot.create(
+                    content, "神田明神", "東京都千代田区",
+                    new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
+                    "千代田区", 40, null));
+
+            // when / then — 캐시 전: 빈 값, describe 호출도 없어야 한다
+            assertThat(contentService.cachedRecommendedMinutes(spot.getId())).isEmpty();
+            then(aiDescribeClient).shouldHaveNoInteractions();
+
+            // given — 캐시 적재
+            given(aiDescribeClient.describe(any())).willReturn(new AiDescribeResult(
+                    content.getId(), "openai",
+                    List.of(new AiSpotDescription(spot.getId(), "설명", "포인트", "칸다묘진", 45))));
+            contentService.findContentSpots(content.getId());
+
+            // then
+            assertThat(contentService.cachedRecommendedMinutes(spot.getId())).contains(45);
+        }
+    }
+
+    @Nested
     @DisplayName("findContent는")
     class FindContent {
 

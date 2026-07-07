@@ -46,19 +46,28 @@ public class TripService {
     private final ContentRepository contentRepository;
     private final NearbyAttractionRepository attractionRepository;
     private final AiTripClient aiTripClient;
+    private final com.sungjiduk.backend.content.service.ContentService contentService;
 
     public TripService(
             TripPlanRepository tripPlanRepository,
             PilgrimageSpotRepository spotRepository,
             ContentRepository contentRepository,
             NearbyAttractionRepository attractionRepository,
-            AiTripClient aiTripClient
+            AiTripClient aiTripClient,
+            com.sungjiduk.backend.content.service.ContentService contentService
     ) {
         this.tripPlanRepository = tripPlanRepository;
         this.spotRepository = spotRepository;
         this.contentRepository = contentRepository;
         this.attractionRepository = attractionRepository;
         this.aiTripClient = aiTripClient;
+        this.contentService = contentService;
+    }
+
+    /** AI 추정 체류분(describe 캐시) 우선, 없으면 엔티티 기본값 — 카드 표기와 일정을 일치시킨다. */
+    private int stayMinutesFor(PilgrimageSpot spot) {
+        return contentService.cachedRecommendedMinutes(spot.getId())
+                .orElse(spot.getRecommendedDurationMin());
     }
 
     @Transactional
@@ -154,7 +163,7 @@ public class TripService {
                         spot.getId(), spot.getName(), spot.getCity(),
                         spot.getLat() == null ? null : spot.getLat().doubleValue(),
                         spot.getLng() == null ? null : spot.getLng().doubleValue(),
-                        spot.getRecommendedDurationMin(), "PILGRIMAGE"));
+                        stayMinutesFor(spot), "PILGRIMAGE"));
             }
         });
         for (NearbyAttraction attraction : attractions) {
@@ -234,7 +243,7 @@ public class TripService {
                     .sequence(sequence)
                     .name(spot != null ? spot.getName() : null)
                     .arrivalTime(String.format("%02d:00", 9 + sequence))
-                    .stayMinutes(spot != null ? spot.getRecommendedDurationMin() : 30)
+                    .stayMinutes(spot != null ? stayMinutesFor(spot) : 30)
                     .build());
         }
         for (int i = 0; i < attractions.size(); i++) {
