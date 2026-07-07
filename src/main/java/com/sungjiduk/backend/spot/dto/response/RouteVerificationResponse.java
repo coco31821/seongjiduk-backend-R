@@ -9,8 +9,19 @@ public record RouteVerificationResponse(
         int postCount,
         int usedPostCount,
         List<SpotMention> spotMentions,
-        List<VerifiedPair> verifiedPairs
+        List<VerifiedPair> verifiedPairs,
+        List<VerifiedCourse> courses
 ) {
+    public record VerifiedCourse(
+            int rank,
+            List<Long> spotIds,
+            int supportCount,
+            List<Source> sources
+    ) {
+        public record Source(String title, String link, String postdate) {
+        }
+    }
+
     public record SpotMention(Long spotId, int count) {
     }
 
@@ -18,6 +29,6 @@ public record RouteVerificationResponse(
     }
 
     public static RouteVerificationResponse unavailable(Long contentId) {
-        return new RouteVerificationResponse(contentId, false, 0, 0, List.of(), List.of());
+        return new RouteVerificationResponse(contentId, false, 0, 0, List.of(), List.of(), List.of());
     }
 }

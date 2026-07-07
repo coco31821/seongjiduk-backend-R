@@ -51,7 +51,10 @@ public class RouteVerificationService {
         // 한국 블로그는 한국어 표기를 쓰므로 koreanName 포함 목록(설명 캐시)을 재사용해 매칭률을 높인다
         var spots = contentService.findContentSpots(contentId).spots();
 
-        var items = naverBlogClient.search(content.getTitle() + " 성지순례", SEARCH_COUNT);
+        var items = new java.util.ArrayList<>(naverBlogClient.search(content.getTitle() + " 성지순례", SEARCH_COUNT));
+        // 최근 방문 후기 우선 (postdate desc) — 최신 코스가 상위로
+        items.sort(java.util.Comparator.comparing(
+                (NaverBlogClient.BlogItem it) -> it.postdate() == null ? "" : it.postdate()).reversed());
         // 링크 중복 제거 후 본문 확보(모바일 뷰) — 원문은 이 요청 스코프에서만 사용
         java.util.List<AiRouteVerifyClient.VerifyRequest.BlogPost> posts = new java.util.ArrayList<>();
         java.util.Set<String> seenLinks = new java.util.HashSet<>();
@@ -60,10 +63,12 @@ public class RouteVerificationService {
                 continue;
             }
             postFetcher.fetchText(item.link())
-                    .ifPresent(text -> posts.add(new AiRouteVerifyClient.VerifyRequest.BlogPost(item.title(), text)));
+                    .ifPresent(text -> posts.add(new AiRouteVerifyClient.VerifyRequest.BlogPost(
+                            item.title(), text, item.postdate(), item.link())));
         }
         if (posts.isEmpty()) {
-            return new RouteVerificationResponse(contentId, true, items.size(), 0, java.util.List.of(), java.util.List.of());
+            return new RouteVerificationResponse(contentId, true, items.size(), 0,
+                    java.util.List.of(), java.util.List.of(), java.util.List.of());
         }
 
         try {
@@ -73,20 +78,34 @@ public class RouteVerificationService {
                             spot.id(), spot.name(), spot.koreanName())).toList(),
                     posts));
             if (result == null) {
-                return new RouteVerificationResponse(contentId, true, posts.size(), 0, java.util.List.of(), java.util.List.of());
+                return new RouteVerificationResponse(contentId, true, posts.size(), 0,
+                        java.util.List.of(), java.util.List.of(), java.util.List.of());
             }
             RouteVerificationResponse response = new RouteVerificationResponse(
                     contentId, true, result.postCount(), result.usedPostCount(),
                     result.spotMentions() == null ? java.util.List.of() : result.spotMentions().stream()
                             .map(m -> new RouteVerificationResponse.SpotMention(m.spotId(), m.count())).toList(),
                     result.verifiedPairs() == null ? java.util.List.of() : result.verifiedPairs().stream()
-                            .map(v -> new RouteVerificationResponse.VerifiedPair(v.fromSpotId(), v.toSpotId(), v.count())).toList());
+                            .map(v -> new RouteVerificationResponse.VerifiedPair(v.fromSpotId(), v.toSpotId(), v.count())).toList(),
+                    result.courses() == null ? java.util.List.of() : result.courses().stream()
+                            .map(course -> new RouteVerificationResponse.VerifiedCourse(
+                                    course.rank(), course.spotIds(), course.supportCount(),
+                                    course.postIndexes() == null ? java.util.List.<RouteVerificationResponse.VerifiedCourse.Source>of()
+                                            : course.postIndexes().stream()
+                                                    .filter(i -> i != null && i >= 0 && i < posts.size())
+                                                    .map(i -> {
+                                                        var post = posts.get(i);
+                                                        return new RouteVerificationResponse.VerifiedCourse.Source(
+                                                                post.title(), post.link(), post.postdate());
+                                                    }).toList()))
+                            .toList());
             if (response.usedPostCount() > 0) {
                 cache.put(contentId, response);
             }
             return response;
         } catch (RuntimeException e) {
-            return new RouteVerificationResponse(contentId, true, posts.size(), 0, java.util.List.of(), java.util.List.of());
+            return new RouteVerificationResponse(contentId, true, posts.size(), 0,
+                    java.util.List.of(), java.util.List.of(), java.util.List.of());
         }
     }
 }

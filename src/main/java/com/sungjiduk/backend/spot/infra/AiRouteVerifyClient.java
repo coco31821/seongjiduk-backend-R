@@ -45,7 +45,7 @@ public class AiRouteVerifyClient {
         public record RouteSpot(Long id, String name, String koreanName) {
         }
 
-        public record BlogPost(String title, String text) {
+        public record BlogPost(String title, String text, String postdate, String link) {
         }
     }
 
@@ -55,8 +55,13 @@ public class AiRouteVerifyClient {
             int postCount,
             int usedPostCount,
             List<SpotMention> spotMentions,
-            List<VerifiedPair> verifiedPairs
+            List<VerifiedPair> verifiedPairs,
+            List<VerifiedCourse> courses
     ) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public record VerifiedCourse(int rank, List<Long> spotIds, int supportCount, List<Integer> postIndexes) {
+        }
+
         @JsonIgnoreProperties(ignoreUnknown = true)
         public record SpotMention(Long spotId, int count) {
         }
