@@ -182,6 +182,27 @@ class SpotImportServiceTest {
         }
 
         @Test
+        @DisplayName("작품 city가 없어도(레제편 등) '미상'으로 폴백해 임포트한다")
+        void fallsBackToUnknownCityWhenWorkCityMissing() {
+            // given — Anitabi lite에 city가 null인 작품(극장판 등) + 지오코딩 실패
+            Content content = savedContent();
+            given(anitabiClient.fetchWork(470660L)).willReturn(new AnitabiWork("체인소맨 레제편", null));
+            given(anitabiClient.fetchPoints(470660L)).willReturn(List.of(
+                    point("r1", "喫茶エル", 35.699, 139.767, null)
+            ));
+            given(reverseGeocoder.reverse(anyDouble(), anyDouble())).willReturn(Optional.empty());
+
+            // when
+            SpotImportResponse response = spotImportService.importSpots(content.getId(), 470660L);
+
+            // then — 실패 0, city는 '미상'
+            assertThat(response.failed()).isZero();
+            assertThat(response.created()).isEqualTo(1);
+            PilgrimageSpot spot = spotRepository.findByContentAndName(content, "喫茶エル").orElseThrow();
+            assertThat(spot.getCity()).isEqualTo("미상");
+        }
+
+        @Test
         @DisplayName("존재하지 않는 content면 CONTENT_NOT_FOUND 예외를 던진다")
         void throwsWhenContentMissing() {
             // given
