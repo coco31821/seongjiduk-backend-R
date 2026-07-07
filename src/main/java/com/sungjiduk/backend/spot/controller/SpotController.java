@@ -34,6 +34,11 @@ public class SpotController {
         return ApiResponse.ok(spotService.findNearbyAttractions(spotId));
     }
 
+    @GetMapping("/api/spots/{spotId}/nearby-restaurants")
+    public ApiResponse<NearbyAttractionsResponse> nearbyRestaurants(@PathVariable Long spotId) {
+        return ApiResponse.ok(spotService.findNearbyRestaurants(spotId));
+    }
+
     @PostMapping("/api/spot-reports")
     public ApiResponse<SpotReportResponse> report(@Valid @RequestBody SpotReportCreateRequest request) {
         return ApiResponse.ok(spotService.createReport(request));

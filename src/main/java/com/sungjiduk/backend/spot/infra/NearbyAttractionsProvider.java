@@ -10,6 +10,9 @@ public interface NearbyAttractionsProvider {
 
     List<Attraction> findNearby(double lat, double lng);
 
+    /** 주변 식당 — 여정 ⑤(맛집) 레이어. 계약은 관광 명소와 동일한 Attraction. */
+    List<Attraction> findNearbyRestaurants(double lat, double lng);
+
     record Attraction(
             String name,
             String category,        // 예: 신사, 공원, 박물관 (Places type 한국어화)

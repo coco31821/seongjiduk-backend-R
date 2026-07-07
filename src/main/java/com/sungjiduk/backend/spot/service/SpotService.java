@@ -46,7 +46,36 @@ public class SpotService {
     /** 성지별 주변 관광지 캐시(외부 API 절약). 빈 결과는 캐시하지 않아 키 추가 시 재시도된다. */
     private final java.util.Map<Long, NearbyAttractionsResponse> nearbyCache = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /** 성지별 주변 맛집 캐시 — 관광지와 정렬 기준이 달라(별점순) 분리 보관. */
+    private final java.util.Map<Long, NearbyAttractionsResponse> restaurantCache = new java.util.concurrent.ConcurrentHashMap<>();
+
     private static final int MAX_ATTRACTIONS = 6;
+
+    /** 주변 맛집 — 별점 높은 순(동점은 리뷰수), 여정 ⑤ 레이어. */
+    public NearbyAttractionsResponse findNearbyRestaurants(Long spotId) {
+        NearbyAttractionsResponse cached = restaurantCache.get(spotId);
+        if (cached != null) {
+            return cached;
+        }
+        PilgrimageSpot spot = spotRepository.findByIdOrThrow(spotId);
+        var restaurants = attractionsProvider
+                .findNearbyRestaurants(spot.getLat().doubleValue(), spot.getLng().doubleValue())
+                .stream()
+                .filter(a -> a.rating() != null && a.ratingCount() != null)
+                .sorted(java.util.Comparator
+                        .comparing(NearbyAttractionsProvider.Attraction::rating)
+                        .thenComparing(NearbyAttractionsProvider.Attraction::ratingCount)
+                        .reversed())
+                .limit(MAX_ATTRACTIONS)
+                .map(a -> new NearbyAttractionsResponse.AttractionSummary(
+                        a.name(), a.category(), a.rating(), a.ratingCount(), a.lat(), a.lng(), a.mapsUrl()))
+                .toList();
+        NearbyAttractionsResponse response = new NearbyAttractionsResponse(spotId, restaurants);
+        if (!restaurants.isEmpty()) {
+            restaurantCache.put(spotId, response);
+        }
+        return response;
+    }
 
     public NearbyAttractionsResponse findNearbyAttractions(Long spotId) {
         NearbyAttractionsResponse cached = nearbyCache.get(spotId);
