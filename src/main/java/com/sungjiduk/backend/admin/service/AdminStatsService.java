@@ -2,7 +2,6 @@ package com.sungjiduk.backend.admin.service;
 
 import com.sungjiduk.backend.admin.dto.response.AdminStatsOverviewResponse;
 import com.sungjiduk.backend.admin.dto.response.StatsSeriesResponse;
-import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.event.repository.UsageEventRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
@@ -37,35 +36,11 @@ public class AdminStatsService {
         long todayTripPlanCount = tripPlanRepository.count();
         long AiRequestCount = 9999L; // Phase 2에서 구현 예정, AiRequestRepository
 
-        List<String> ContentTodayList = tripPlanRepository.findMostFrequentTitleToday(start(), end(), PageRequest.of(0, 1));
-        String topContentToday;
+        String topContentToday = getContentTitle(tripPlanRepository.findMostFrequentTitleToday(start(), end(), PageRequest.of(0, 1))); // 구현 수정 필요
 
-        if (ContentTodayList.isEmpty()) {
-            topContentToday = "아직 집계된 작품이 없습니다.";
-        }
+        List<Long> spotTodayList = tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
 
-        else {
-            topContentToday = ContentTodayList.getFirst();
-        }
-
-        List<Long> SpotTodayList = tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
-        String topSpotToday;
-
-        if (SpotTodayList.isEmpty()) {
-            topSpotToday = "아직 집계된 성지가 없습니다";
-        }
-
-        else {
-           Long id = SpotTodayList.getFirst();
-            Optional<PilgrimageSpot> optionalPilgrimageSpot = pilgrimageSpotRepository.findById(id);
-
-
-            if (optionalPilgrimageSpot.isEmpty()) {
-                throw new NoSuchElementException();
-            }
-
-            topSpotToday = optionalPilgrimageSpot.get().getName();
-        }
+        String topSpotToday = getSpotName(spotTodayList);
 
         return new AdminStatsOverviewResponse(
             userTotalCount,
@@ -76,17 +51,71 @@ public class AdminStatsService {
             topSpotToday);
     }
 
+    private String getContentTitle(List<String> ContentTodayList) {
+        String topContentToday;
+
+        if (ContentTodayList.isEmpty()) {
+            topContentToday = "아직 집계된 작품이 없습니다.";
+        }
+
+        else {
+            topContentToday = ContentTodayList.getFirst();
+        }
+        return topContentToday;
+    }
+
+    private String getSpotName(List<Long> spotTodayList) {
+        String spot;
+
+        if (spotTodayList.isEmpty()) {
+            spot = "아직 집계된 성지가 없습니다";
+        }
+
+        else {
+            Long id = spotTodayList.getFirst();
+            Optional<PilgrimageSpot> optionalPilgrimageSpot = pilgrimageSpotRepository.findById(id);
+
+
+            if (optionalPilgrimageSpot.isEmpty()) {
+                throw new NoSuchElementException();
+            }
+
+            spot = optionalPilgrimageSpot.get().getName();
+        }
+
+        return spot;
+    }
+
     public StatsSeriesResponse visitors() {
-        return new StatsSeriesResponse("visitors", List.of(
-                new StatsSeriesResponse.Point("2026-07-01", 34),
-                new StatsSeriesResponse.Point("2026-07-02", 41)
+        long todayVisitorCount = usageEventRepository.countUsageEventByOccurredAtBetween(start(), end());
+        long todaySignUpCount = userRepository.countUserByCreatedAtBetween(start(), end());
+
+        return new StatsSeriesResponse("접속자 통계", List.of(
+                new StatsSeriesResponse.Point("오늘 방문 수", todayVisitorCount),
+                new StatsSeriesResponse.Point("DAU", 41),
+                new StatsSeriesResponse.Point("회원가입 수", todaySignUpCount),
+                new StatsSeriesResponse.Point("비회원/회원 이용 비율", 41)
         ));
     }
 
     public StatsSeriesResponse usage() {
-        return new StatsSeriesResponse("trip_plans", List.of(
-                new StatsSeriesResponse.Point("trip_generate", 88),
-                new StatsSeriesResponse.Point("ai_request", 103)
+        long totalTripPlanCount = tripPlanRepository.count();
+        long todayTripPlanCount = tripPlanRepository.countTripPlanByCreatedAtBetween(start(), end());
+        String topContentToday = getContentTitle(tripPlanRepository.findMostFrequentTitleToday(start(), end(), PageRequest.of(0, 1)));
+        List<Long> spotTodayList = tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
+        String topSpotToday = getSpotName(spotTodayList);
+
+
+        return new StatsSeriesResponse("서비스 이용 통계", List.of(
+                new StatsSeriesResponse.Point("총 일정 생성 수", totalTripPlanCount),
+                new StatsSeriesResponse.Point("일자별 일정 생성 수", todayTripPlanCount),
+                new StatsSeriesResponse.Point("AI 호출 수", 103), // P2때 작업 예정
+                new StatsSeriesResponse.Point("인기 작품", 103),
+                new StatsSeriesResponse.Point("인기 국가/도시", 103),
+                new StatsSeriesResponse.Point("인기 성지", 103),
+                new StatsSeriesResponse.Point("예산 태그 분포", 103),
+                new StatsSeriesResponse.Point("저장 수", 103),
+                new StatsSeriesResponse.Point("공유 수", 103)
         ));
     }
 

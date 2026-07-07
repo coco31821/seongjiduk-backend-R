@@ -23,4 +23,6 @@ public interface TripPlanRepository extends JpaRepository<TripPlan, Long> {
         @Param("end") LocalDateTime end,
         Pageable pageable
     );
+
+    long countTripPlanByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 }
