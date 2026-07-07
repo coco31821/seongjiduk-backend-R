@@ -106,6 +106,17 @@ public class ContentService {
         return new ContentSpotsResponse(content.getId(), content.getTitle(), summaries);
     }
 
+    /**
+     * describe 캐시의 AI 추정 체류분 — LLM을 새로 부르지 않는 읽기 전용 조회.
+     * 일정 생성(TripService)이 엔티티 기본값 대신 쓰도록 캐시를 공유한다.
+     */
+    public java.util.Optional<Integer> cachedRecommendedMinutes(Long spotId) {
+        AiSpotDescription description = descriptionCache.get(spotId);
+        return description == null
+                ? java.util.Optional.empty()
+                : java.util.Optional.ofNullable(description.recommendedMinutes());
+    }
+
     /** 성지별 애니 장면 이미지 URL(Anitabi 핫링크). 없으면 map에 없음. */
     private Map<Long, String> sceneImagesBySpotId(List<PilgrimageSpot> spots) {
         if (spots.isEmpty()) {
