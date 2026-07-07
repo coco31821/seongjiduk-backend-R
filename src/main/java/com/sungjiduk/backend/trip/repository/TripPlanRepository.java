@@ -11,6 +11,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TripPlanRepository extends JpaRepository<TripPlan, Long> {
+    /** 내 일정 목록 — 최신 생성 순 */
+    List<TripPlan> findByUserIdOrderByIdDesc(Long userId);
+
     @Query(
         """
         SELECT s.title
