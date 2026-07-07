@@ -537,6 +537,27 @@ class TripServiceTest {
     }
 
     @Nested
+    @DisplayName("AI 로그와 일정 삭제는")
+    class AiLogSurvivesDeletion {
+
+        @Test
+        @DisplayName("일정을 삭제해도 AI 호출 로그는 남는다 (통계 보존 — FK가 삭제를 막으면 안 됨)")
+        void deletingTripKeepsAiLogs() {
+            // given
+            TripResponse created = tripService.generate(member.getId(), defaultRequest());
+
+            // when
+            tripService.delete(member.getId(), created.tripId());
+
+            // then — 일정은 사라지고 로그는 tripPlanId로 남는다
+            assertThat(tripPlanRepository.findById(created.tripId())).isEmpty();
+            var logs = aiRequestLogRepository.findAll();
+            assertThat(logs).hasSize(1);
+            assertThat(logs.get(0).getTripPlanId()).isEqualTo(created.tripId());
+        }
+    }
+
+    @Nested
     @DisplayName("Trip 소유권은")
     class TripOwnership {
 
@@ -637,7 +658,7 @@ class TripServiceTest {
             assertThat(logs).hasSize(1);
             assertThat(logs.get(0).getRequestType()).isEqualTo(AiRequestType.TRIP_GENERATE);
             assertThat(logs.get(0).getStatus()).isEqualTo(AiRequestStatus.FALLBACK);
-            assertThat(logs.get(0).getTripPlan().getId()).isEqualTo(response.tripId());
+            assertThat(logs.get(0).getTripPlanId()).isEqualTo(response.tripId());
             assertThat(logs.get(0).getCreatedAt()).isNotNull();
         }
 

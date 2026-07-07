@@ -1,6 +1,5 @@
 package com.sungjiduk.backend.ailog.entity;
 
-import com.sungjiduk.backend.trip.entity.TripPlan;
 import com.sungjiduk.backend.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -39,9 +38,12 @@ public class AiRequestLog {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "trip_plan_id")
-    private TripPlan tripPlan;
+    /**
+     * 소프트 참조 — FK를 걸지 않는다. 일정이 삭제돼도 호출 로그(통계)는 보존돼야 하고,
+     * FK가 있으면 일정 삭제 자체가 막힌다(라이브 실측 결함).
+     */
+    @Column(name = "trip_plan_id")
+    private Long tripPlanId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "request_type", nullable = false, length = 30)
@@ -59,10 +61,10 @@ public class AiRequestLog {
     private LocalDateTime createdAt;
 
     @Builder
-    private AiRequestLog(User user, TripPlan tripPlan, AiRequestType requestType,
+    private AiRequestLog(User user, Long tripPlanId, AiRequestType requestType,
                          AiRequestStatus status, Integer tokenUsage) {
         this.user = user;
-        this.tripPlan = tripPlan;
+        this.tripPlanId = tripPlanId;
         this.requestType = requestType;
         this.status = status;
         this.tokenUsage = tokenUsage;
