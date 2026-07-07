@@ -73,6 +73,26 @@ class ContentServiceTest {
     class FindContents {
 
         @Test
+        @DisplayName("작품별 성지 수(spotCount)를 함께 반환한다 — 성지 여권 수집률 분모")
+        void includesSpotCount() {
+            // given
+            Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
+            spotRepository.save(PilgrimageSpot.create(
+                    content, "神田明神", "東京都", new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
+                    "千代田区", 40, null));
+            spotRepository.save(PilgrimageSpot.create(
+                    content, "秋葉原駅", "東京都", new BigDecimal("35.6980000"), new BigDecimal("139.7730000"),
+                    "千代田区", 20, null));
+
+            // when
+            var contents = contentService.findContents(null, null);
+
+            // then
+            var found = contents.stream().filter(c -> c.id().equals(content.getId())).findFirst().orElseThrow();
+            assertThat(found.spotCount()).isEqualTo(2);
+        }
+
+        @Test
         @DisplayName("저장된 작품을 요약 목록으로 반환한다")
         void returnsSavedContents() {
             // given

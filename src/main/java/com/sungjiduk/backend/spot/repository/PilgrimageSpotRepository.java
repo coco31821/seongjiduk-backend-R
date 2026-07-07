@@ -12,6 +12,8 @@ import java.util.Optional;
 
 @Repository
 public interface PilgrimageSpotRepository extends JpaRepository<PilgrimageSpot, Long> {
+    long countByContentId(Long contentId);
+
 
     Optional<PilgrimageSpot> findByContentAndName(Content content, String name);
 

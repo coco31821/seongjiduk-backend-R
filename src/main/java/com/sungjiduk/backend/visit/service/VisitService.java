@@ -68,6 +68,8 @@ public class VisitService {
                 visit.getId(),
                 visit.getSpot().getId(),
                 visit.getSpot().getName(),
+                visit.getSpot().getContent().getId(),
+                visit.getSpot().getContent().getTitle(),
                 visit.getNote(),
                 visit.getImageUrl());
     }
