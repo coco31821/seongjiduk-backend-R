@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import com.sungjiduk.backend.spot.infra.StreetViewClient;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +50,9 @@ class SpotServiceTest {
     // 실제 Google Places 호출은 하지 않는다.
     @MockitoBean
     private NearbyAttractionsProvider attractionsProvider;
+
+    @MockitoBean
+    private StreetViewClient streetViewClient;
 
     private PilgrimageSpot savedSpot() {
         Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
@@ -157,6 +161,53 @@ class SpotServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(ErrorCode.SPOT_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("streetView는")
+    class StreetView {
+
+        @Test
+        @DisplayName("이미지를 반환하고 같은 스팟 재요청은 캐시를 쓴다")
+        void returnsImageAndCaches() {
+            // given
+            PilgrimageSpot spot = savedSpot();
+            byte[] image = new byte[]{1, 2, 3};
+            org.mockito.BDDMockito.given(streetViewClient.fetchImage(
+                    org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.anyDouble()))
+                    .willReturn(java.util.Optional.of(image));
+
+            // when
+            var first = spotService.streetView(spot.getId());
+            var second = spotService.streetView(spot.getId());
+
+            // then
+            assertThat(first).contains(image);
+            assertThat(second).contains(image);
+            org.mockito.BDDMockito.then(streetViewClient)
+                    .should(org.mockito.Mockito.times(1))
+                    .fetchImage(org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.anyDouble());
+        }
+
+        @Test
+        @DisplayName("파노라마가 없으면 빈 값을 반환하고 캐시하지 않는다 (키 추가 시 재시도)")
+        void emptyWhenNoImagery() {
+            // given
+            PilgrimageSpot spot = savedSpot();
+            org.mockito.BDDMockito.given(streetViewClient.fetchImage(
+                    org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.anyDouble()))
+                    .willReturn(java.util.Optional.empty());
+
+            // when
+            var result = spotService.streetView(spot.getId());
+            spotService.streetView(spot.getId());
+
+            // then
+            assertThat(result).isEmpty();
+            org.mockito.BDDMockito.then(streetViewClient)
+                    .should(org.mockito.Mockito.times(2))
+                    .fetchImage(org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.anyDouble());
         }
     }
 }
