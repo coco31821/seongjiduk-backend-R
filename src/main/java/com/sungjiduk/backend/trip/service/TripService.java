@@ -1,5 +1,9 @@
 package com.sungjiduk.backend.trip.service;
 
+import com.sungjiduk.backend.ailog.entity.AiRequestLog;
+import com.sungjiduk.backend.ailog.entity.AiRequestStatus;
+import com.sungjiduk.backend.ailog.entity.AiRequestType;
+import com.sungjiduk.backend.ailog.repository.AiRequestLogRepository;
 import com.sungjiduk.backend.attraction.entity.NearbyAttraction;
 import com.sungjiduk.backend.attraction.repository.NearbyAttractionRepository;
 import com.sungjiduk.backend.common.constants.ErrorCode;
@@ -48,6 +52,7 @@ public class TripService {
     private final AiTripClient aiTripClient;
     private final com.sungjiduk.backend.content.service.ContentService contentService;
     private final com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService;
+    private final AiRequestLogRepository aiRequestLogRepository;
 
     public TripService(
             TripPlanRepository tripPlanRepository,
@@ -56,7 +61,8 @@ public class TripService {
             NearbyAttractionRepository attractionRepository,
             AiTripClient aiTripClient,
             com.sungjiduk.backend.content.service.ContentService contentService,
-            com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService
+            com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService,
+            AiRequestLogRepository aiRequestLogRepository
     ) {
         this.tripPlanRepository = tripPlanRepository;
         this.spotRepository = spotRepository;
@@ -65,6 +71,7 @@ public class TripService {
         this.aiTripClient = aiTripClient;
         this.contentService = contentService;
         this.routeVerificationService = routeVerificationService;
+        this.aiRequestLogRepository = aiRequestLogRepository;
     }
 
     /** AI 추정 체류분(describe 캐시) 우선, 없으면 엔티티 기본값 — 카드 표기와 일정을 일치시킨다. */
@@ -88,9 +95,10 @@ public class TripService {
                 .status(TripStatus.DRAFT)
                 .build();
 
-        layoutRoute(plan, request);
+        AiRequestStatus aiStatus = layoutRoute(plan, request);
 
         TripPlan saved = tripPlanRepository.save(plan);
+        recordAiRequest(saved, AiRequestType.TRIP_GENERATE, aiStatus);
         return toResponse(saved);
     }
 
@@ -98,16 +106,30 @@ public class TripService {
      * 일정 배치. ai-service(LangGraph)를 우선 호출하고, 실패하면 로컬 규칙으로 폴백한다.
      * 기존 Day는 비우고 다시 채우므로 generate/regenerate가 공유한다.
      */
-    private void layoutRoute(TripPlan plan, TripGenerateRequest request) {
+    private AiRequestStatus layoutRoute(TripPlan plan, TripGenerateRequest request) {
         Map<Long, PilgrimageSpot> spotsById = loadCandidateSpots(request);
         List<NearbyAttraction> attractions = resolveAttractions(request);
         try {
             AiTripLayout layout = aiTripClient.generate(toAiRequest(plan, request, spotsById, attractions));
             applyAiLayout(plan, layout);
+            return AiRequestStatus.SUCCESS;
         } catch (RuntimeException e) {
             log.warn("ai-service 일정 생성 실패, 로컬 배치로 폴백합니다: {}", e.getMessage());
             applyLocalLayout(plan, request, spotsById, attractions);
+            return AiRequestStatus.FALLBACK;
         }
+    }
+
+    /**
+     * AI 호출 로그 — 트랜잭션과 함께 기록(07 설계), 관리자 통계(C파트)가 읽기 전용 집계.
+     * user는 Trip↔User 배선 전이라 null (배선 후 인증 사용자로 채운다).
+     */
+    private void recordAiRequest(TripPlan plan, AiRequestType requestType, AiRequestStatus status) {
+        aiRequestLogRepository.save(AiRequestLog.builder()
+                .tripPlan(plan)
+                .requestType(requestType)
+                .status(status)
+                .build());
     }
 
     /** 새로 담은 관광지는 mapsUrl 멱등 upsert로 영속화하고, 재생성용 id들은 로드해 합친다. */
@@ -290,7 +312,8 @@ public class TripService {
     public TripResponse regenerate(Long tripId, TripGenerateRequest request) {
         TripPlan plan = tripPlanRepository.findById(tripId)
                 .orElseThrow(() -> new TripNotFoundException(tripId));
-        layoutRoute(plan, request);
+        AiRequestStatus aiStatus = layoutRoute(plan, request);
+        recordAiRequest(plan, AiRequestType.TRIP_REGENERATE, aiStatus);
         return toResponse(plan);
     }
 
