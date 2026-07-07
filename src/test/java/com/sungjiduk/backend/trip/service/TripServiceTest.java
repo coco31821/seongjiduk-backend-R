@@ -658,7 +658,7 @@ class TripServiceTest {
             assertThat(logs).hasSize(1);
             assertThat(logs.get(0).getRequestType()).isEqualTo(AiRequestType.TRIP_GENERATE);
             assertThat(logs.get(0).getStatus()).isEqualTo(AiRequestStatus.FALLBACK);
-            assertThat(logs.get(0).getTripPlan().getId()).isEqualTo(response.tripId());
+            assertThat(logs.get(0).getTripPlanId()).isEqualTo(response.tripId());
             assertThat(logs.get(0).getCreatedAt()).isNotNull();
         }
 

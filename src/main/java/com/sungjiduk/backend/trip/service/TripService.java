@@ -144,7 +144,7 @@ public class TripService {
     private void recordAiRequest(TripPlan plan, AiRequestType requestType, AiRequestStatus status, Long userId) {
         aiRequestLogRepository.save(AiRequestLog.builder()
                 .user(userRef(userId))
-                .tripPlan(plan)
+                .tripPlanId(plan.getId())
                 .requestType(requestType)
                 .status(status)
                 .build());
