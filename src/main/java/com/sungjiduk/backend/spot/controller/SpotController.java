@@ -38,4 +38,15 @@ public class SpotController {
     public ApiResponse<SpotReportResponse> report(@Valid @RequestBody SpotReportCreateRequest request) {
         return ApiResponse.ok(spotService.createReport(request));
     }
+
+    /** 여행 미리보기 실거리뷰 — 이미지 프록시(키 비노출). 파노라마 없으면 404. */
+    @GetMapping("/api/spots/{spotId}/street-view")
+    public org.springframework.http.ResponseEntity<byte[]> streetView(@PathVariable Long spotId) {
+        return spotService.streetView(spotId)
+                .map(bytes -> org.springframework.http.ResponseEntity.ok()
+                        .contentType(org.springframework.http.MediaType.IMAGE_JPEG)
+                        .cacheControl(org.springframework.http.CacheControl.maxAge(java.time.Duration.ofHours(6)))
+                        .body(bytes))
+                .orElseGet(() -> org.springframework.http.ResponseEntity.notFound().build());
+    }
 }

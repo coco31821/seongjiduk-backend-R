@@ -6,6 +6,7 @@ import com.sungjiduk.backend.spot.dto.response.SpotDetailResponse;
 import com.sungjiduk.backend.spot.dto.response.SpotReportResponse;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.infra.NearbyAttractionsProvider;
+import com.sungjiduk.backend.spot.infra.StreetViewClient;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,10 +17,30 @@ public class SpotService {
 
     private final PilgrimageSpotRepository spotRepository;
     private final NearbyAttractionsProvider attractionsProvider;
+    private final StreetViewClient streetViewClient;
 
-    public SpotService(PilgrimageSpotRepository spotRepository, NearbyAttractionsProvider attractionsProvider) {
+    public SpotService(PilgrimageSpotRepository spotRepository, NearbyAttractionsProvider attractionsProvider,
+                       StreetViewClient streetViewClient) {
         this.spotRepository = spotRepository;
         this.attractionsProvider = attractionsProvider;
+        this.streetViewClient = streetViewClient;
+    }
+
+    /** 성지별 스트리트뷰 이미지 캐시 — 빈 결과는 캐시하지 않는다(키 추가 시 재시도). */
+    private final java.util.Map<Long, byte[]> streetViewCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 여행 미리보기용 실거리뷰(장면컷 옆 실사) — 키는 서버에만 있고 이미지 바이트를 프록시한다. */
+    public java.util.Optional<byte[]> streetView(Long spotId) {
+        byte[] cached = streetViewCache.get(spotId);
+        if (cached != null) {
+            return java.util.Optional.of(cached);
+        }
+        var spot = spotRepository.findById(spotId)
+                .orElseThrow(() -> new com.sungjiduk.backend.common.exception.BusinessException(
+                        com.sungjiduk.backend.common.constants.ErrorCode.SPOT_NOT_FOUND));
+        var image = streetViewClient.fetchImage(spot.getLat().doubleValue(), spot.getLng().doubleValue());
+        image.ifPresent(bytes -> streetViewCache.put(spotId, bytes));
+        return image;
     }
 
     /** 성지별 주변 관광지 캐시(외부 API 절약). 빈 결과는 캐시하지 않아 키 추가 시 재시도된다. */
