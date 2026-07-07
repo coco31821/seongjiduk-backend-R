@@ -1,6 +1,20 @@
 SET REFERENTIAL_INTEGRITY FALSE;
 DELETE FROM trip_plan;
 
+INSERT INTO contents (id, title, category, country, description) VALUES
+(1, '교토의 역사와 전통 거리', 'TRAVEL', 'JAPAN', '고즈넉한 교토의 문화재와 풍경을 탐방하는 콘텐츠'),
+(2, '오사카 먹방 가이드', 'FOOD', 'JAPAN', '도톤보리와 오사카 전역의 맛집을 정복하는 콘텐츠'),
+(3, '유니버셜 스튜디오 재팬 마스터', 'ACTIVITY', 'JAPAN', '테마파크를 알차게 즐기기 위한 전용 가이드'),
+(4, '홋카이도 겨울 설경 투어', 'TRAVEL', 'JAPAN', '삿포로와 비에이의 아름다운 눈 풍경을 담은 코스'),
+-- trip_plan에서 가장 많이 쓰인 5번 ID (애니메이션/성지순례 매칭)
+(5, '러브라이브! 시리즈 종합 성지순례', 'ANIME', 'JAPAN', '누마즈와 도쿄 중심의 최애 캐릭터 로케이션 총집합'),
+(6, '오키나와 에메랄드 해변 드라이브', 'TRAVEL', 'JAPAN', '푸른 바다와 휴양을 동시에 즐기는 오키나와 코스'),
+(7, '후쿠오카 온천과 라멘 탐방', 'FOOD', 'JAPAN', '유후인 온천 힐링과 하카타 라멘 맛집 투어'),
+(8, '지브리 감성 스튜디오 투어', 'ANIME', 'JAPAN', '나고야 지브리 파크와 미타카 박물관 중심의 감성 여행'),
+(9, '도쿄 도심 핫플레이스 정복', 'SHOPPING', 'JAPAN', '시부야, 신주쿠의 쇼핑몰과 전망대 중심의 도시 여행'),
+(10, '신카이 마코토 감독 작품 로케지', 'ANIME', 'JAPAN', '너의 이름은, 날씨의 아이 스가 신사 계단 등 성지 모음'),
+(11, '나라 사슴공원과 문화재 탐방', 'ACTIVITY', 'JAPAN', '귀여운 사슴들과 역사적인 사찰을 둘러보는 힐링 코스');
+
 INSERT INTO trip_plan (id, user_id, content_id, title, start_location, duration_days, budget_level, travel_style, status, share_token, created_at) VALUES
 -- status 값을 모두 허용 범위인 'SAVED'로 변경했습니다.
 (1, 101, 5, '도쿄 덕후 투어 1', '인천공항', 3, 'MODERATE', 'ANIME', 'SAVED', 'token_001', '2026-07-04 09:15:00'),

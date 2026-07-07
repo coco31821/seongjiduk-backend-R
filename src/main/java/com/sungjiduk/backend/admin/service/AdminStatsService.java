@@ -2,8 +2,9 @@ package com.sungjiduk.backend.admin.service;
 
 import com.sungjiduk.backend.admin.dto.response.AdminStatsOverviewResponse;
 import com.sungjiduk.backend.admin.dto.response.StatsSeriesResponse;
+import com.sungjiduk.backend.common.constants.ErrorCode;
+import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.content.entity.Content;
-import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.event.repository.UsageEventRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
@@ -14,6 +15,7 @@ import com.sungjiduk.backend.user.repository.UserRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -30,30 +32,18 @@ public class AdminStatsService {
     private final UsageEventRepository usageEventRepository;
     private final TripPlanRepository tripPlanRepository;
     private final TripStopRepository tripStopRepository;
-    private final ContentRepository contentRepository;
     private final PilgrimageSpotRepository pilgrimageSpotRepository;
 
     public AdminStatsOverviewResponse overview() throws NoSuchElementException {
+        LocalDate today = LocalDate.now();
+
         long userTotalCount = userRepository.count();
-        long todayVisitorCount = usageEventRepository.countUsageEventByOccurredAtBetween(start(), end());
+        long todayVisitorCount = usageEventRepository.countUsageEventByOccurredAtBetween(start(today), end(today));
         long todayTripPlanCount = tripPlanRepository.count();
         long AiRequestCount = 9999L; // Phase 2에서 구현 예정, AiRequestRepository
 
-        String topContentToday = getContentTitle(
-            tripPlanRepository.findMostFrequentContentIdToday(
-                start(),
-                end(),
-                PageRequest.of(0, 1)
-            )
-        );
-
-        List<Long> spotTodayList = tripStopRepository.findMostFrequentSpotToday(
-            start(),
-            end(),
-            PageRequest.of(0, 1)
-        );
-
-        String topSpotToday = getSpotName(spotTodayList);
+        String topContentToday = getContentTitle(today, today);
+        String topSpotToday = getSpotName(today, today);
 
         return new AdminStatsOverviewResponse(
             userTotalCount,
@@ -64,49 +54,11 @@ public class AdminStatsService {
             topSpotToday);
     }
 
-    private String getContentTitle(List<Long> contentTodayList) {
-        String topContentToday;
-
-        if (contentTodayList.isEmpty()) {
-            topContentToday = "아직 집계된 작품이 없습니다.";
-        }
-
-        else {
-            Optional<Content> optionalContent = contentRepository.findById(contentTodayList.getFirst());
-
-            Content content = optionalContent.orElseThrow(NoSuchElementException::new);
-
-            topContentToday = content.getTitle();
-        }
-
-        return topContentToday;
-    }
-
-    private String getSpotName(List<Long> spotTodayList) {
-        String spot;
-
-        if (spotTodayList.isEmpty()) {
-            spot = "아직 집계된 성지가 없습니다";
-        }
-
-        else {
-            Long id = spotTodayList.getFirst();
-            Optional<PilgrimageSpot> optionalPilgrimageSpot = pilgrimageSpotRepository.findById(id);
-
-
-            if (optionalPilgrimageSpot.isEmpty()) {
-                throw new NoSuchElementException();
-            }
-
-            spot = optionalPilgrimageSpot.get().getName();
-        }
-
-        return spot;
-    }
-
     public StatsSeriesResponse visitors() {
-        long todayVisitorCount = usageEventRepository.countUsageEventByOccurredAtBetween(start(), end());
-        long todaySignUpCount = userRepository.countUserByCreatedAtBetween(start(), end());
+        LocalDate today = LocalDate.now();
+
+        long todayVisitorCount = usageEventRepository.countUsageEventByOccurredAtBetween(start(today), end(today));
+        long todaySignUpCount = userRepository.countUserByCreatedAtBetween(start(today), end(today));
 
         return new StatsSeriesResponse("접속자 통계", List.of(
                 new StatsSeriesResponse.Point("오늘 방문 수", todayVisitorCount),
@@ -117,11 +69,12 @@ public class AdminStatsService {
     }
 
     public StatsSeriesResponse usage() {
+        LocalDate today = LocalDate.now();
+
         long totalTripPlanCount = tripPlanRepository.count();
-        long todayTripPlanCount = tripPlanRepository.countTripPlanByCreatedAtBetween(start(), end());
-        String topContentToday = getContentTitle(tripPlanRepository.findMostFrequentContentIdToday(start(), end(), PageRequest.of(0, 1)));
-        List<Long> spotTodayList = tripStopRepository.findMostFrequentSpotToday(start(), end(), PageRequest.of(0, 1));
-        String topSpotToday = getSpotName(spotTodayList);
+        long todayTripPlanCount = tripPlanRepository.countTripPlanByCreatedAtBetween(start(today), end(today));
+        String topContentToday = getContentTitle(today, today);
+        String topSpotToday = getSpotName(today, today);
 
 
         return new StatsSeriesResponse("서비스 이용 통계", List.of(
@@ -137,11 +90,46 @@ public class AdminStatsService {
         ));
     }
 
-    private LocalDateTime start() {
-        return LocalDateTime.now().toLocalDate().atStartOfDay(); // 오늘 0시 0분 0초
+    private String getContentTitle(LocalDate startDate, LocalDate endDate) {
+        List<Content> contentList = tripPlanRepository.findMostFrequentContent(
+            start(startDate),
+            end(endDate),
+            PageRequest.of(0, 1)
+        );
+
+        try {
+            return contentList.getFirst().getTitle();
+        } catch (Exception e) {
+            return "아직 집계된 작품이 없습니다.";
+        }
     }
 
-    private LocalDateTime end() {
-        return LocalDateTime.now().toLocalDate().atTime(LocalTime.MAX); // 오늘 23시 59분 59.99999...초
+    private String getSpotName(LocalDate startDate, LocalDate endDate) {
+        List<Long> spotList = tripStopRepository.findMostFrequentSpotToday(
+            start(startDate),
+            end(endDate),
+            PageRequest.of(0, 1)
+        );
+
+        try {
+            Optional<PilgrimageSpot> pilgrimageSpot = pilgrimageSpotRepository.findById(spotList.getFirst());
+
+            if (pilgrimageSpot.isEmpty()) {
+                throw new BusinessException(ErrorCode.PILGRIMAGE_SPOT_NOT_FOUND);
+            }
+
+            return pilgrimageSpot.get().getName();
+
+        } catch (NoSuchElementException e) {
+            return "아직 집계된 성지가 없습니다.";
+        }
+    }
+
+    private LocalDateTime start(LocalDate time) {
+        return time.atStartOfDay(); // 0시 0분 0초
+    }
+
+    private LocalDateTime end(LocalDate time) {
+        return time.atTime(LocalTime.MAX); // 23시 59분 59.99999...초
     }
 }
