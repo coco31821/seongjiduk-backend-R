@@ -1,12 +1,14 @@
 package com.sungjiduk.backend.trip.controller;
 
 import com.sungjiduk.backend.common.api.ApiResponse;
+import com.sungjiduk.backend.user.entity.CurrentUser;
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
 import com.sungjiduk.backend.trip.dto.response.TripShareResponse;
 import com.sungjiduk.backend.trip.dto.response.TripSummaryResponse;
 import com.sungjiduk.backend.trip.service.TripService;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,23 +30,26 @@ public class TripController {
     }
 
     @PostMapping("/generate")
-    public ApiResponse<TripResponse> generate(@Valid @RequestBody TripGenerateRequest request) {
-        return ApiResponse.ok(tripService.generate(request));
+    public ApiResponse<TripResponse> generate(@AuthenticationPrincipal CurrentUser currentUser,
+                                              @Valid @RequestBody TripGenerateRequest request) {
+        return ApiResponse.ok(tripService.generate(idOf(currentUser), request));
     }
 
     @PostMapping("/{tripId}/regenerate")
-    public ApiResponse<TripResponse> regenerate(@PathVariable Long tripId, @Valid @RequestBody TripGenerateRequest request) {
-        return ApiResponse.ok(tripService.regenerate(tripId, request));
+    public ApiResponse<TripResponse> regenerate(@AuthenticationPrincipal CurrentUser currentUser,
+                                                @PathVariable Long tripId, @Valid @RequestBody TripGenerateRequest request) {
+        return ApiResponse.ok(tripService.regenerate(idOf(currentUser), tripId, request));
     }
 
     @PostMapping("/{tripId}/save")
-    public ApiResponse<TripSummaryResponse> save(@PathVariable Long tripId) {
-        return ApiResponse.ok(tripService.save(tripId));
+    public ApiResponse<TripSummaryResponse> save(@AuthenticationPrincipal CurrentUser currentUser,
+                                                 @PathVariable Long tripId) {
+        return ApiResponse.ok(tripService.save(currentUser.getId(), tripId));
     }
 
     @GetMapping
-    public ApiResponse<List<TripSummaryResponse>> trips() {
-        return ApiResponse.ok(tripService.findMyTrips());
+    public ApiResponse<List<TripSummaryResponse>> trips(@AuthenticationPrincipal CurrentUser currentUser) {
+        return ApiResponse.ok(tripService.findMyTrips(currentUser.getId()));
     }
 
     @GetMapping("/{tripId}")
@@ -53,13 +58,20 @@ public class TripController {
     }
 
     @DeleteMapping("/{tripId}")
-    public ApiResponse<Void> delete(@PathVariable Long tripId) {
-        tripService.delete(tripId);
+    public ApiResponse<Void> delete(@AuthenticationPrincipal CurrentUser currentUser,
+                                    @PathVariable Long tripId) {
+        tripService.delete(currentUser.getId(), tripId);
         return ApiResponse.ok();
     }
 
     @PostMapping("/{tripId}/share")
-    public ApiResponse<TripShareResponse> share(@PathVariable Long tripId) {
-        return ApiResponse.ok(tripService.share(tripId));
+    public ApiResponse<TripShareResponse> share(@AuthenticationPrincipal CurrentUser currentUser,
+                                                @PathVariable Long tripId) {
+        return ApiResponse.ok(tripService.share(currentUser.getId(), tripId));
+    }
+
+    /** 선택 인증 엔드포인트용 — 비회원이면 null */
+    private Long idOf(CurrentUser currentUser) {
+        return currentUser == null ? null : currentUser.getId();
     }
 }

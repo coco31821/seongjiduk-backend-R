@@ -26,6 +26,8 @@ import com.sungjiduk.backend.trip.infra.AiTripClient;
 import com.sungjiduk.backend.trip.infra.dto.AiTripLayout;
 import com.sungjiduk.backend.trip.infra.dto.AiTripRequest;
 import com.sungjiduk.backend.trip.repository.TripPlanRepository;
+import com.sungjiduk.backend.user.entity.User;
+import com.sungjiduk.backend.user.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -53,6 +55,7 @@ public class TripService {
     private final com.sungjiduk.backend.content.service.ContentService contentService;
     private final com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService;
     private final AiRequestLogRepository aiRequestLogRepository;
+    private final UserRepository userRepository;
 
     public TripService(
             TripPlanRepository tripPlanRepository,
@@ -62,7 +65,8 @@ public class TripService {
             AiTripClient aiTripClient,
             com.sungjiduk.backend.content.service.ContentService contentService,
             com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService,
-            AiRequestLogRepository aiRequestLogRepository
+            AiRequestLogRepository aiRequestLogRepository,
+            UserRepository userRepository
     ) {
         this.tripPlanRepository = tripPlanRepository;
         this.spotRepository = spotRepository;
@@ -72,6 +76,19 @@ public class TripService {
         this.contentService = contentService;
         this.routeVerificationService = routeVerificationService;
         this.aiRequestLogRepository = aiRequestLogRepository;
+        this.userRepository = userRepository;
+    }
+
+    /** userId가 있으면 User 프록시 참조 (조회 쿼리 없이 FK만) */
+    private User userRef(Long userId) {
+        return userId == null ? null : userRepository.getReferenceById(userId);
+    }
+
+    /** 소유자 가드 — 소유된 플랜은 소유자만 접근, 비회원 생성 플랜(무소유)은 통과 */
+    private void requireAccess(TripPlan plan, Long userId) {
+        if (!plan.isUnowned() && !plan.isOwnedBy(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
     }
 
     /** AI 추정 체류분(describe 캐시) 우선, 없으면 엔티티 기본값 — 카드 표기와 일정을 일치시킨다. */
@@ -81,11 +98,12 @@ public class TripService {
     }
 
     @Transactional
-    public TripResponse generate(TripGenerateRequest request) {
+    public TripResponse generate(Long userId, TripGenerateRequest request) {
         Content content = contentRepository.findById(request.contentId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONTENT_NOT_FOUND));
 
         TripPlan plan = TripPlan.builder()
+                .user(userRef(userId))
                 .content(content)
                 .durationDays(request.durationDays())
                 .startLocation(request.startLocation())
@@ -98,7 +116,7 @@ public class TripService {
         AiRequestStatus aiStatus = layoutRoute(plan, request);
 
         TripPlan saved = tripPlanRepository.save(plan);
-        recordAiRequest(saved, AiRequestType.TRIP_GENERATE, aiStatus);
+        recordAiRequest(saved, AiRequestType.TRIP_GENERATE, aiStatus, userId);
         return toResponse(saved);
     }
 
@@ -122,10 +140,10 @@ public class TripService {
 
     /**
      * AI 호출 로그 — 트랜잭션과 함께 기록(07 설계), 관리자 통계(C파트)가 읽기 전용 집계.
-     * user는 Trip↔User 배선 전이라 null (배선 후 인증 사용자로 채운다).
      */
-    private void recordAiRequest(TripPlan plan, AiRequestType requestType, AiRequestStatus status) {
+    private void recordAiRequest(TripPlan plan, AiRequestType requestType, AiRequestStatus status, Long userId) {
         aiRequestLogRepository.save(AiRequestLog.builder()
+                .user(userRef(userId))
                 .tripPlan(plan)
                 .requestType(requestType)
                 .status(status)
@@ -309,25 +327,30 @@ public class TripService {
     }
 
     @Transactional
-    public TripResponse regenerate(Long tripId, TripGenerateRequest request) {
+    public TripResponse regenerate(Long userId, Long tripId, TripGenerateRequest request) {
         TripPlan plan = tripPlanRepository.findById(tripId)
                 .orElseThrow(() -> new TripNotFoundException(tripId));
+        requireAccess(plan, userId);
         AiRequestStatus aiStatus = layoutRoute(plan, request);
-        recordAiRequest(plan, AiRequestType.TRIP_REGENERATE, aiStatus);
+        recordAiRequest(plan, AiRequestType.TRIP_REGENERATE, aiStatus, userId);
         return toResponse(plan);
     }
 
-    public TripSummaryResponse save(Long tripId) {
+    public TripSummaryResponse save(Long userId, Long tripId) {
         TripPlan plan = tripPlanRepository.findById(tripId)
                 .orElseThrow(() -> new TripNotFoundException(tripId));
+        requireAccess(plan, userId);
+        if (plan.isUnowned()) {
+            plan.assignOwner(userRef(userId)); // 비회원 생성 → 로그인 후 저장 플로우의 소유권 클레임
+        }
         plan.markSaved();
         tripPlanRepository.save(plan);
         return toSummary(plan);
     }
 
     @Transactional(readOnly = true)
-    public List<TripSummaryResponse> findMyTrips() {
-        return tripPlanRepository.findAll().stream()
+    public List<TripSummaryResponse> findMyTrips(Long userId) {
+        return tripPlanRepository.findByUserIdOrderByIdDesc(userId).stream()
                 .map(this::toSummary)
                 .toList();
     }
@@ -344,16 +367,21 @@ public class TripService {
     }
 
     @Transactional
-    public void delete(Long tripId) {
+    public void delete(Long userId, Long tripId) {
         TripPlan plan = tripPlanRepository.findById(tripId)
                 .orElseThrow(() -> new TripNotFoundException(tripId));
+        requireAccess(plan, userId);
         tripPlanRepository.delete(plan);
     }
 
     @Transactional
-    public TripShareResponse share(Long tripId) {
+    public TripShareResponse share(Long userId, Long tripId) {
         TripPlan plan = tripPlanRepository.findById(tripId)
                 .orElseThrow(() -> new TripNotFoundException(tripId));
+        requireAccess(plan, userId);
+        if (plan.isUnowned()) {
+            plan.assignOwner(userRef(userId)); // 로그인 후 이어서 공유 플로우
+        }
         plan.assignShareToken(UUID.randomUUID().toString().replace("-", ""));
         String shareUrl = "https://seongjiduk.example/share/" + plan.getShareToken();
         return new TripShareResponse(plan.getId(), shareUrl, plan.getTitle() + " 공유");
