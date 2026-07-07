@@ -5,5 +5,6 @@ public record ContentListResponse(
         String title,
         String category,
         String country
-) {
+,
+        long spotCount) {
 }
