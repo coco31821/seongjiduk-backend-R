@@ -1,5 +1,8 @@
 package com.sungjiduk.backend.trip.service;
 
+import com.sungjiduk.backend.ailog.entity.AiRequestStatus;
+import com.sungjiduk.backend.ailog.entity.AiRequestType;
+import com.sungjiduk.backend.ailog.repository.AiRequestLogRepository;
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.content.service.ContentService;
@@ -52,6 +55,9 @@ class TripServiceTest {
 
     @Autowired
     private NearbyAttractionRepository attractionRepository;
+
+    @Autowired
+    private AiRequestLogRepository aiRequestLogRepository;
 
     @Autowired
     private ContentRepository contentRepository;
@@ -510,6 +516,75 @@ class TripServiceTest {
             var captor = org.mockito.ArgumentCaptor.forClass(AiTripRequest.class);
             org.mockito.BDDMockito.then(aiTripClient).should().generate(captor.capture());
             assertThat(captor.getValue().verifiedCourses()).containsExactly(List.of(5L, 6L));
+        }
+    }
+
+    @Nested
+    @DisplayName("AI 호출 로그는")
+    class AiRequestLogging {
+
+        @Test
+        @DisplayName("generate 시 TRIP_GENERATE 로그를 일정과 함께 남긴다 (폴백이면 FALLBACK)")
+        void logsGenerateWithFallbackStatus() {
+            // given — 기본 목킹: ai-service 다운 → 로컬 폴백 경로
+            TripGenerateRequest request = new TripGenerateRequest(
+                    content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L), List.of(), null, null, null);
+
+            // when
+            TripResponse response = tripService.generate(request);
+
+            // then
+            var logs = aiRequestLogRepository.findAll();
+            assertThat(logs).hasSize(1);
+            assertThat(logs.get(0).getRequestType()).isEqualTo(AiRequestType.TRIP_GENERATE);
+            assertThat(logs.get(0).getStatus()).isEqualTo(AiRequestStatus.FALLBACK);
+            assertThat(logs.get(0).getTripPlan().getId()).isEqualTo(response.tripId());
+            assertThat(logs.get(0).getCreatedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("ai-service가 성공하면 SUCCESS로 기록한다")
+        void logsSuccessWhenAiResponds() {
+            // given
+            willReturn(new AiTripLayout(
+                    "AI 제목",
+                    List.of(new AiTripLayout.Day(1, "요약",
+                            List.of(new AiTripLayout.Stop(1, "PILGRIMAGE", 10L, "spot",
+                                    "10:00", 30, "이유")))),
+                    "공유 문구", "openai")).given(aiTripClient).generate(any());
+            TripGenerateRequest request = new TripGenerateRequest(
+                    content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L), List.of(), null, null, null);
+
+            // when
+            tripService.generate(request);
+
+            // then
+            assertThat(aiRequestLogRepository.findAll())
+                    .singleElement()
+                    .extracting(log -> log.getStatus())
+                    .isEqualTo(AiRequestStatus.SUCCESS);
+        }
+
+        @Test
+        @DisplayName("regenerate 시 TRIP_REGENERATE 로그가 추가된다")
+        void logsRegenerate() {
+            // given
+            TripResponse created = tripService.generate(new TripGenerateRequest(
+                    content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L), List.of(), null, null, null));
+
+            // when
+            tripService.regenerate(created.tripId(), new TripGenerateRequest(
+                    content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L, 20L), List.of(), null, null, null));
+
+            // then — generate 1건 + regenerate 1건
+            var logs = aiRequestLogRepository.findAll();
+            assertThat(logs).hasSize(2);
+            assertThat(logs).extracting(log -> log.getRequestType())
+                    .containsExactlyInAnyOrder(AiRequestType.TRIP_GENERATE, AiRequestType.TRIP_REGENERATE);
         }
     }
 
