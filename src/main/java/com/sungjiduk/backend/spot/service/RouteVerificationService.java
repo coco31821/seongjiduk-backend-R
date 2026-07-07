@@ -108,6 +108,20 @@ public class RouteVerificationService {
         }
     }
 
+    /**
+     * 캐시된 검증 코스의 스팟 시퀀스(랭킹 순) — 일정 생성이 백본으로 쓴다.
+     * 캐시가 없으면 빈 목록: 검증은 느린 파이프라인이라 여기서 발화시키지 않는다.
+     */
+    public java.util.List<java.util.List<Long>> cachedCourseSpotIds(Long contentId) {
+        RouteVerificationResponse cached = cache.get(contentId);
+        if (cached == null || cached.courses() == null) {
+            return java.util.List.of();
+        }
+        return cached.courses().stream()
+                .map(RouteVerificationResponse.VerifiedCourse::spotIds)
+                .toList();
+    }
+
     /** ai가 준 포스트 인덱스를 출처(제목·링크·작성일)로 매핑한다. 범위 밖 인덱스는 무시. */
     private java.util.List<RouteVerificationResponse.Source> toSources(
             java.util.List<Integer> postIndexes,

@@ -7,6 +7,8 @@ import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.infra.AiDescribeClient;
 import com.sungjiduk.backend.spot.infra.dto.AiDescribeResult;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
+import com.sungjiduk.backend.spot.service.RouteVerificationService;
+import com.sungjiduk.backend.trip.infra.dto.AiTripRequest;
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
 import com.sungjiduk.backend.trip.dto.response.TripShareResponse;
@@ -62,6 +64,9 @@ class TripServiceTest {
 
     @MockitoBean
     private AiDescribeClient aiDescribeClient;
+
+    @MockitoBean
+    private RouteVerificationService routeVerificationService;
 
     // TripPlan.content가 FK 필수라 테스트마다 실제 작품 행을 만들어 쓴다.
     private Content content;
@@ -482,6 +487,29 @@ class TripServiceTest {
             TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
             TripStop stop = saved.getDays().get(0).getStops().get(0);
             assertThat(stop.getStayMinutes()).isEqualTo(45);
+        }
+    }
+
+    @Nested
+    @DisplayName("검증 코스 캐시가 있으면")
+    class VerifiedCourseBackbone {
+
+        @Test
+        @DisplayName("AI 일정 요청에 verifiedCourses로 전달한다")
+        void passesCachedCoursesToAiRequest() {
+            // given
+            org.mockito.BDDMockito.given(routeVerificationService.cachedCourseSpotIds(content.getId()))
+                    .willReturn(List.of(List.of(5L, 6L)));
+
+            // when — ai 미가용이라 폴백하지만 요청 자체는 보낸다
+            tripService.generate(new TripGenerateRequest(
+                    content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(10L), List.of(), null, null, null));
+
+            // then
+            var captor = org.mockito.ArgumentCaptor.forClass(AiTripRequest.class);
+            org.mockito.BDDMockito.then(aiTripClient).should().generate(captor.capture());
+            assertThat(captor.getValue().verifiedCourses()).containsExactly(List.of(5L, 6L));
         }
     }
 

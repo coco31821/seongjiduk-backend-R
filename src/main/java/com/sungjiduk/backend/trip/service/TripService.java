@@ -47,6 +47,7 @@ public class TripService {
     private final NearbyAttractionRepository attractionRepository;
     private final AiTripClient aiTripClient;
     private final com.sungjiduk.backend.content.service.ContentService contentService;
+    private final com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService;
 
     public TripService(
             TripPlanRepository tripPlanRepository,
@@ -54,7 +55,8 @@ public class TripService {
             ContentRepository contentRepository,
             NearbyAttractionRepository attractionRepository,
             AiTripClient aiTripClient,
-            com.sungjiduk.backend.content.service.ContentService contentService
+            com.sungjiduk.backend.content.service.ContentService contentService,
+            com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService
     ) {
         this.tripPlanRepository = tripPlanRepository;
         this.spotRepository = spotRepository;
@@ -62,6 +64,7 @@ public class TripService {
         this.attractionRepository = attractionRepository;
         this.aiTripClient = aiTripClient;
         this.contentService = contentService;
+        this.routeVerificationService = routeVerificationService;
     }
 
     /** AI 추정 체류분(describe 캐시) 우선, 없으면 엔티티 기본값 — 카드 표기와 일정을 일치시킨다. */
@@ -181,7 +184,8 @@ public class TripService {
                 candidates,
                 new ArrayList<>(spotsById.keySet()),
                 request.excludedSpotIds() == null ? List.of() : request.excludedSpotIds(),
-                request.instruction());
+                request.instruction(),
+                routeVerificationService.cachedCourseSpotIds(request.contentId()));
     }
 
     private void applyAiLayout(TripPlan plan, AiTripLayout layout) {
