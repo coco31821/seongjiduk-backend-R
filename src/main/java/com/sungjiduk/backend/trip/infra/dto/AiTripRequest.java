@@ -11,7 +11,8 @@ public record AiTripRequest(
         List<CandidateSpot> candidateSpots,
         List<Long> selectedSpotIds,
         List<Long> excludedSpotIds,
-        String instruction
+        String instruction,
+        List<List<Long>> verifiedCourses  // 블로그 합의 코스(랭킹 순) — ai가 일정 백본으로 사용
 ) {
 
     public record Content(Long id, String title) {
