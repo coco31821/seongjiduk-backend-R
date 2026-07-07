@@ -158,6 +158,28 @@ class RouteVerificationServiceTest {
         }
 
         @Test
+        @DisplayName("cachedCourseSpotIds는 캐시된 검증 코스의 스팟 순서를 외부 호출 없이 돌려준다")
+        void cachedCourseSpotIdsReadsCacheOnly() {
+            // given — 캐시 전: 빈 결과, 외부 호출 없음
+            Content content = savedContentWithSpot();
+            assertThat(routeVerificationService.cachedCourseSpotIds(content.getId())).isEmpty();
+            then(naverBlogClient).shouldHaveNoInteractions();
+
+            given(naverBlogClient.enabled()).willReturn(true);
+            given(naverBlogClient.search(anyString(), anyInt())).willReturn(List.of(
+                    new NaverBlogClient.BlogItem("후기", "https://blog.naver.com/a/1", "20260701")));
+            given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
+            given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
+                    "openai", 1, 1, List.of(), List.of(),
+                    List.of(new VerifyResult.VerifiedCourse(1, List.of(5L, 6L), 1, List.of(0)))));
+            routeVerificationService.verify(content.getId());
+
+            // when / then — 랭킹 순 코스 스팟 시퀀스
+            assertThat(routeVerificationService.cachedCourseSpotIds(content.getId()))
+                    .containsExactly(List.of(5L, 6L));
+        }
+
+        @Test
         @DisplayName("본문을 하나도 못 얻으면 ai를 부르지 않고 빈 결과를 반환한다")
         void skipsAiWhenNoTexts() {
             // given
