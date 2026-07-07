@@ -73,6 +73,28 @@ class SpotImportServiceTest {
     class ImportSpots {
 
         @Test
+        @DisplayName("지오코딩이 city 없이 성공해도 폴백(작품 city)으로 저장한다 — TX 오염 방지")
+        void fallsBackWhenGeocodedCityIsNull() {
+            // given — 바다·외딴 좌표: 지오코딩은 성공했지만 locality가 없음
+            Content content = savedContent();
+            given(anitabiClient.fetchWork(49294L)).willReturn(new AnitabiWork("러브라이브!", "千代田区"));
+            given(anitabiClient.fetchPoints(49294L)).willReturn(List.of(
+                    point("p1", "海上スポット", 35.0, 138.9, "1")
+            ));
+            given(reverseGeocoder.reverse(anyDouble(), anyDouble()))
+                    .willReturn(Optional.of(new GeoResult("駿河湾", null)));
+
+            // when
+            SpotImportResponse response = spotImportService.importSpots(content.getId(), 49294L);
+
+            // then — 실패 없이 저장되고 city는 작품 city로 폴백
+            assertThat(response.failed()).isZero();
+            assertThat(response.created()).isEqualTo(1);
+            PilgrimageSpot spot = spotRepository.findByContentAndName(content, "海上スポット").orElseThrow();
+            assertThat(spot.getCity()).isEqualTo("千代田区");
+        }
+
+        @Test
         @DisplayName("Anitabi 포인트를 새 성지로 저장한다")
         void savesNewSpots() {
             // given
