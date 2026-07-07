@@ -27,6 +27,8 @@ import java.util.Optional;
 public class SpotImportService {
 
     private static final String SOURCE_NAME = "Anitabi";
+    /** 애니 장면 스크린샷 링크용 레퍼런스 sourceName (라이선스상 핫링크만, 재호스팅 금지). */
+    private static final String SCENE_IMAGE_SOURCE = "Anitabi:scene-image";
     private static final int DEFAULT_DURATION_MIN = 30;
 
     private final ContentRepository contentRepository;
@@ -73,7 +75,8 @@ public class SpotImportService {
                     city = geo.get().city();
                 } else {
                     address = point.name();
-                    city = work.city();
+                    // 극장판 등 원본 lite에 city가 없는 작품 대응 — NOT NULL 컬럼이라 '미상' 폴백
+                    city = work.city() == null || work.city().isBlank() ? "미상" : work.city();
                     geocodeFallback++;
                 }
 
@@ -106,15 +109,31 @@ public class SpotImportService {
             isNew = true;
         }
         upsertReference(spot, point);
+        upsertSceneImage(spot, point);
         return isNew;
     }
 
     private void upsertReference(PilgrimageSpot spot, AnitabiPoint point) {
+        if (point.originURL() == null || point.originURL().isBlank()) {
+            return; // 출처가 없으면 레코드 생략 (url NOT NULL — 한 건 위반이 TX를 오염시켜 전체 임포트가 죽는다)
+        }
         String title = referenceTitle(point);
         referenceRepository.findBySpotAndSourceName(spot, SOURCE_NAME)
                 .ifPresentOrElse(
                         reference -> reference.update(title, point.originURL(), SOURCE_NAME),
                         () -> referenceRepository.save(SpotReference.create(spot, title, point.originURL(), SOURCE_NAME))
+                );
+    }
+
+    private void upsertSceneImage(PilgrimageSpot spot, AnitabiPoint point) {
+        if (point.image() == null || point.image().isBlank()) {
+            return;
+        }
+        String title = referenceTitle(point);
+        referenceRepository.findBySpotAndSourceName(spot, SCENE_IMAGE_SOURCE)
+                .ifPresentOrElse(
+                        reference -> reference.update(title, point.image(), SCENE_IMAGE_SOURCE),
+                        () -> referenceRepository.save(SpotReference.create(spot, title, point.image(), SCENE_IMAGE_SOURCE))
                 );
     }
 

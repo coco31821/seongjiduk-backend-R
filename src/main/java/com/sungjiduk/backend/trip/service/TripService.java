@@ -2,6 +2,9 @@ package com.sungjiduk.backend.trip.service;
 
 import com.sungjiduk.backend.attraction.entity.NearbyAttraction;
 import com.sungjiduk.backend.attraction.repository.NearbyAttractionRepository;
+import com.sungjiduk.backend.common.constants.ErrorCode;
+import com.sungjiduk.backend.common.exception.BusinessException;
+import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
@@ -60,8 +63,11 @@ public class TripService {
 
     @Transactional
     public TripResponse generate(TripGenerateRequest request) {
+        Content content = contentRepository.findById(request.contentId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONTENT_NOT_FOUND));
+
         TripPlan plan = TripPlan.builder()
-                .contentId(request.contentId())
+                .content(content)
                 .durationDays(request.durationDays())
                 .startLocation(request.startLocation())
                 .budgetLevel(request.budgetLevel())

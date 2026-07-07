@@ -39,11 +39,16 @@ springdoc:
 seongjiduk:
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
+    # 임포트 직후 백그라운드 사전 생성에 쓸 모델 (비우면 ai-service 기본, 예: gpt-5.5)
+    prewarm-model: ${AI_PREWARM_MODEL:}
   anitabi:
     base-url: ${ANITABI_BASE_URL:https://api.anitabi.cn}
   geocoding:
     google:
       api-key: ${GOOGLE_MAPS_API_KEY:}   # 비면 지오코딩 생략, 작품 city로 fallback
+  naver:
+    client-id: ${NAVER_CLIENT_ID:}       # 비면 블로그 동선 검증 비활성
+    client-secret: ${NAVER_CLIENT_SECRET:}
 
 custom:
   jwt:

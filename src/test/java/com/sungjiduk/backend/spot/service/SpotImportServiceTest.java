@@ -64,7 +64,8 @@ class SpotImportServiceTest {
     }
 
     private AnitabiPoint point(String id, String name, double lat, double lng, String ep) {
-        return new AnitabiPoint(id, name, List.of(lat, lng), ep, "Google Maps", "https://maps.example/" + id);
+        return new AnitabiPoint(id, name, List.of(lat, lng), ep, "Google Maps",
+                "https://maps.example/" + id, "https://image.anitabi.cn/points/" + id + ".jpg?plan=h160");
     }
 
     @Nested
@@ -157,6 +158,70 @@ class SpotImportServiceTest {
             PilgrimageSpot spot = spotRepository.findByContentAndName(content, "とんかつ屋さん").orElseThrow();
             assertThat(spot.getCity()).isEqualTo("千代田区");
             assertThat(spot.getAddress()).isEqualTo("とんかつ屋さん");
+        }
+
+        @Test
+        @DisplayName("애니 장면 이미지 URL을 별도 SpotReference로 남긴다")
+        void savesSceneImageReference() {
+            // given
+            Content content = savedContent();
+            given(anitabiClient.fetchWork(49294L)).willReturn(new AnitabiWork("러브라이브!", "千代田区"));
+            given(anitabiClient.fetchPoints(49294L)).willReturn(List.of(
+                    point("p1", "とんかつ屋さん", 35.7002, 139.7706, "9")
+            ));
+            given(reverseGeocoder.reverse(anyDouble(), anyDouble())).willReturn(Optional.empty());
+
+            // when
+            spotImportService.importSpots(content.getId(), 49294L);
+
+            // then
+            PilgrimageSpot spot = spotRepository.findByContentAndName(content, "とんかつ屋さん").orElseThrow();
+            SpotReference imageReference =
+                    referenceRepository.findBySpotAndSourceName(spot, "Anitabi:scene-image").orElseThrow();
+            assertThat(imageReference.getUrl()).isEqualTo("https://image.anitabi.cn/points/p1.jpg?plan=h160");
+        }
+
+        @Test
+        @DisplayName("작품 city가 없어도(레제편 등) '미상'으로 폴백해 임포트한다")
+        void fallsBackToUnknownCityWhenWorkCityMissing() {
+            // given — Anitabi lite에 city가 null인 작품(극장판 등) + 지오코딩 실패
+            Content content = savedContent();
+            given(anitabiClient.fetchWork(470660L)).willReturn(new AnitabiWork("체인소맨 레제편", null));
+            given(anitabiClient.fetchPoints(470660L)).willReturn(List.of(
+                    point("r1", "喫茶エル", 35.699, 139.767, null)
+            ));
+            given(reverseGeocoder.reverse(anyDouble(), anyDouble())).willReturn(Optional.empty());
+
+            // when
+            SpotImportResponse response = spotImportService.importSpots(content.getId(), 470660L);
+
+            // then — 실패 0, city는 '미상'
+            assertThat(response.failed()).isZero();
+            assertThat(response.created()).isEqualTo(1);
+            PilgrimageSpot spot = spotRepository.findByContentAndName(content, "喫茶エル").orElseThrow();
+            assertThat(spot.getCity()).isEqualTo("미상");
+        }
+
+        @Test
+        @DisplayName("originURL 없는 포인트도 저장한다 (출처 레코드만 생략)")
+        void savesPointWithoutOriginUrl() {
+            // given — 스즈메 등 일부 포인트는 출처 URL이 없음 (SpotReference.url NOT NULL 위반으로 전체 실패하던 케이스)
+            Content content = savedContent();
+            given(anitabiClient.fetchWork(362577L)).willReturn(new AnitabiWork("스즈메의 문단속", "宮崎"));
+            given(anitabiClient.fetchPoints(362577L)).willReturn(List.of(
+                    new AnitabiPoint("s1", "湯平温泉", List.of(33.3, 131.3), "1", "Anitabi", null, null)
+            ));
+            given(reverseGeocoder.reverse(anyDouble(), anyDouble())).willReturn(Optional.empty());
+
+            // when
+            SpotImportResponse response = spotImportService.importSpots(content.getId(), 362577L);
+
+            // then — 성지는 저장, 출처 레코드는 없음
+            assertThat(response.failed()).isZero();
+            assertThat(response.created()).isEqualTo(1);
+            PilgrimageSpot spot = spotRepository.findByContentAndName(content, "湯平温泉").orElseThrow();
+            assertThat(spot.getReferenceUrl()).isNull();
+            assertThat(referenceRepository.findBySpotAndSourceName(spot, "Anitabi")).isEmpty();
         }
 
         @Test
