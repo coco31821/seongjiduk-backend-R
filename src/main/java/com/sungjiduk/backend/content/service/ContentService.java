@@ -2,7 +2,7 @@ package com.sungjiduk.backend.content.service;
 
 import com.sungjiduk.backend.content.dto.response.ContentDetailResponse;
 import com.sungjiduk.backend.content.dto.response.ContentSpotsResponse;
-import com.sungjiduk.backend.content.dto.response.ContentSummaryResponse;
+import com.sungjiduk.backend.content.dto.response.ContentListResponse;
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
@@ -57,9 +57,9 @@ public class ContentService {
         this.prewarmModel = prewarmModel;
     }
 
-    public List<ContentSummaryResponse> findContents() {
-        return contentRepository.findAll().stream()
-                .map(content -> new ContentSummaryResponse(
+    public List<ContentListResponse> findContents(String category, String country) {
+        return contentRepository.findContents(category, country).stream()
+                .map(content -> new ContentListResponse(
                         content.getId(),
                         content.getTitle(),
                         content.getCategory(),

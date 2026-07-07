@@ -5,7 +5,7 @@ import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.content.dto.response.ContentDetailResponse;
 import com.sungjiduk.backend.content.dto.response.ContentSpotsResponse;
-import com.sungjiduk.backend.content.dto.response.ContentSummaryResponse;
+import com.sungjiduk.backend.content.dto.response.ContentListResponse;
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
@@ -80,10 +80,10 @@ class ContentServiceTest {
             saveContent("케이온!");
 
             // when
-            List<ContentSummaryResponse> contents = contentService.findContents();
+            List<ContentListResponse> contents = contentService.findContents(null, null);
 
             // then
-            assertThat(contents).extracting(ContentSummaryResponse::title)
+            assertThat(contents).extracting(ContentListResponse::title)
                     .contains("러브라이브!", "케이온!");
         }
     }
