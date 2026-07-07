@@ -114,6 +114,9 @@ public class SpotImportService {
     }
 
     private void upsertReference(PilgrimageSpot spot, AnitabiPoint point) {
+        if (point.originURL() == null || point.originURL().isBlank()) {
+            return; // 출처가 없으면 레코드 생략 (url NOT NULL — 한 건 위반이 TX를 오염시켜 전체 임포트가 죽는다)
+        }
         String title = referenceTitle(point);
         referenceRepository.findBySpotAndSourceName(spot, SOURCE_NAME)
                 .ifPresentOrElse(
