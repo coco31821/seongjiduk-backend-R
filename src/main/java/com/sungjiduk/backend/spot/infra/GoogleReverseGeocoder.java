@@ -1,0 +1,84 @@
+package com.sungjiduk.backend.spot.infra;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Google Geocoding API 기반 역지오코딩.
+ * env {@code GOOGLE_MAPS_API_KEY}가 있으면 호출하고, 없거나 실패하면 {@link Optional#empty()}를 반환한다.
+ * (주소는 루트 계산엔 불필요하지만 AI 설명·Day 라벨 품질에 도움 → 옵션.)
+ */
+@Component
+public class GoogleReverseGeocoder implements ReverseGeocoder {
+
+    private final String apiKey;
+    private final RestClient restClient;
+
+    public GoogleReverseGeocoder(@Value("${seongjiduk.geocoding.google.api-key:}") String apiKey) {
+        this.apiKey = apiKey;
+        this.restClient = RestClient.builder()
+                .baseUrl("https://maps.googleapis.com")
+                .build();
+    }
+
+    @Override
+    public Optional<GeoResult> reverse(double lat, double lng) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            GeocodeResponse response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/maps/api/geocode/json")
+                            .queryParam("latlng", lat + "," + lng)
+                            .queryParam("language", "ja")
+                            .queryParam("key", apiKey)
+                            .build())
+                    .retrieve()
+                    .body(GeocodeResponse.class);
+
+            if (response == null || !"OK".equals(response.status()) || response.results().isEmpty()) {
+                return Optional.empty();
+            }
+            GeocodeResult top = response.results().get(0);
+            return Optional.of(new GeoResult(top.formattedAddress(), extractCity(top)));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    private String extractCity(GeocodeResult result) {
+        return result.addressComponents().stream()
+                .filter(c -> c.types().contains("locality"))
+                .map(AddressComponent::longName)
+                .findFirst()
+                .orElseGet(() -> result.addressComponents().stream()
+                        .filter(c -> c.types().contains("administrative_area_level_1"))
+                        .map(AddressComponent::longName)
+                        .findFirst()
+                        .orElse(null));
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GeocodeResponse(String status, List<GeocodeResult> results) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GeocodeResult(
+            @com.fasterxml.jackson.annotation.JsonProperty("formatted_address") String formattedAddress,
+            @com.fasterxml.jackson.annotation.JsonProperty("address_components") List<AddressComponent> addressComponents
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record AddressComponent(
+            @com.fasterxml.jackson.annotation.JsonProperty("long_name") String longName,
+            List<String> types
+    ) {
+    }
+}

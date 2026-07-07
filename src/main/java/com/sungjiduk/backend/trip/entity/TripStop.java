@@ -1,5 +1,7 @@
 package com.sungjiduk.backend.trip.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -54,6 +56,8 @@ public class TripStop {
 
     @Column(name = "stay_minutes")
     private int stayMinutes;
+
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     @Builder
     private TripStop(SpotType spotType, Long pilgrimageSpotId, Long nearbyAttractionId,

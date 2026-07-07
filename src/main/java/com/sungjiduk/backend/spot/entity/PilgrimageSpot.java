@@ -3,6 +3,7 @@ package com.sungjiduk.backend.spot.entity;
 import com.sungjiduk.backend.content.entity.Content;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -74,7 +75,7 @@ public class PilgrimageSpot {
 //    private List<TripStop> TripStops = new ArrayList<>();
 //
 
-
+    @Builder
     private PilgrimageSpot(
             Content content,
             String name,

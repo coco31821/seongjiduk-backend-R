@@ -39,6 +39,11 @@ springdoc:
 seongjiduk:
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
+  anitabi:
+    base-url: ${ANITABI_BASE_URL:https://api.anitabi.cn}
+  geocoding:
+    google:
+      api-key: ${GOOGLE_MAPS_API_KEY:}   # 비면 지오코딩 생략, 작품 city로 fallback
 
 custom:
   jwt:
