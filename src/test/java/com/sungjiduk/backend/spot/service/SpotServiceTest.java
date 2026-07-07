@@ -63,6 +63,73 @@ class SpotServiceTest {
     }
 
     @Nested
+    @DisplayName("findNearbyRestaurants는")
+    class FindNearbyRestaurants {
+
+        @Test
+        @DisplayName("별점 높은 순(동점은 리뷰수 순)으로 상위 6곳을 반환한다")
+        void returnsTopRestaurantsByRating() {
+            // given
+            PilgrimageSpot spot = savedSpot();
+            given(attractionsProvider.findNearbyRestaurants(anyDouble(), anyDouble())).willReturn(List.of(
+                    new Attraction("동네 라멘", "라멘", 4.2, 900, 35.70, 139.77, "https://maps/1"),
+                    new Attraction("전설의 돈카츠", "돈카츠", 4.8, 3200, 35.70, 139.77, "https://maps/2"),
+                    new Attraction("숨은 소바", "소바", 4.8, 150, 35.70, 139.77, "https://maps/3"),
+                    new Attraction("무평점 포장마차", "포장마차", null, null, 35.70, 139.77, "https://maps/4"),
+                    new Attraction("A식당", "식당", 4.0, 100, 35.70, 139.77, "https://maps/5"),
+                    new Attraction("B식당", "식당", 4.1, 200, 35.70, 139.77, "https://maps/6"),
+                    new Attraction("C식당", "식당", 4.3, 300, 35.70, 139.77, "https://maps/7"),
+                    new Attraction("D식당", "식당", 4.4, 400, 35.70, 139.77, "https://maps/8")
+            ));
+
+            // when
+            NearbyAttractionsResponse response = spotService.findNearbyRestaurants(spot.getId());
+
+            // then — 별점 내림차순(동점 4.8은 리뷰수 많은 쪽 먼저), 무평점 제외, 상위 6
+            assertThat(response.attractions()).hasSize(6);
+            assertThat(response.attractions().get(0).name()).isEqualTo("전설의 돈카츠");
+            assertThat(response.attractions().get(1).name()).isEqualTo("숨은 소바");
+            assertThat(response.attractions()).extracting(NearbyAttractionsResponse.AttractionSummary::name)
+                    .doesNotContain("무평점 포장마차");
+        }
+
+        @Test
+        @DisplayName("같은 성지 재조회 시 프로바이더를 다시 호출하지 않고, 관광 명소 캐시와 분리돼 있다")
+        void cachesSeparatelyFromAttractions() {
+            // given
+            PilgrimageSpot spot = savedSpot();
+            given(attractionsProvider.findNearbyRestaurants(anyDouble(), anyDouble())).willReturn(List.of(
+                    new Attraction("전설의 돈카츠", "돈카츠", 4.8, 3200, 35.70, 139.77, "https://maps/2")));
+            given(attractionsProvider.findNearby(anyDouble(), anyDouble())).willReturn(List.of(
+                    new Attraction("간다 신사", "신사", 4.5, 5100, 35.70, 139.77, "https://maps/3")));
+
+            // when
+            spotService.findNearbyRestaurants(spot.getId());
+            spotService.findNearbyRestaurants(spot.getId());
+            NearbyAttractionsResponse attractions = spotService.findNearbyAttractions(spot.getId());
+
+            // then
+            then(attractionsProvider).should(times(1)).findNearbyRestaurants(anyDouble(), anyDouble());
+            assertThat(attractions.attractions().get(0).name()).isEqualTo("간다 신사");
+        }
+
+        @Test
+        @DisplayName("빈 결과는 캐시하지 않아 키 추가 후 재시도된다")
+        void doesNotCacheEmpty() {
+            // given
+            PilgrimageSpot spot = savedSpot();
+            given(attractionsProvider.findNearbyRestaurants(anyDouble(), anyDouble())).willReturn(List.of());
+
+            // when
+            spotService.findNearbyRestaurants(spot.getId());
+            spotService.findNearbyRestaurants(spot.getId());
+
+            // then
+            then(attractionsProvider).should(times(2)).findNearbyRestaurants(anyDouble(), anyDouble());
+        }
+    }
+
+    @Nested
     @DisplayName("findNearbyAttractions는")
     class FindNearbyAttractions {
 
