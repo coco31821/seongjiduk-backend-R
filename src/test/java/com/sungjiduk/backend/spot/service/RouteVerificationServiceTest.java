@@ -25,6 +25,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -132,7 +133,7 @@ class RouteVerificationServiceTest {
             assertThat(response.courses()).hasSize(1);
             var course = response.courses().get(0);
             assertThat(course.spotIds()).containsExactly(5L, 6L);
-            assertThat(course.sources()).extracting(RouteVerificationResponse.VerifiedCourse.Source::title)
+            assertThat(course.sources()).extracting(RouteVerificationResponse.Source::title)
                     .containsExactly("최신후기", "옛후기");
         }
 
@@ -152,9 +153,60 @@ class RouteVerificationServiceTest {
             routeVerificationService.verify(content.getId());
             routeVerificationService.verify(content.getId());
 
-            // then
-            then(naverBlogClient).should(times(1)).search(anyString(), anyInt());
+            // then — 검색은 쿼리 수(2)만큼만, 재조회에서 추가 호출 없음
+            then(naverBlogClient).should(times(2)).search(anyString(), anyInt());
             then(aiRouteVerifyClient).should(times(1)).verify(any());
+        }
+
+        @Test
+        @DisplayName("검색은 멀티 쿼리(성지순례·성지 후기)를 display 50으로 부르고 링크 중복은 합친다")
+        void searchesWithExpandedMultiQuery() {
+            // given
+            Content content = savedContentWithSpot();
+            given(naverBlogClient.enabled()).willReturn(true);
+            given(naverBlogClient.search(eq(content.getTitle() + " 성지순례"), eq(50))).willReturn(List.of(
+                    new NaverBlogClient.BlogItem("겹침후기", "https://blog.naver.com/dup/1", "20260701")));
+            given(naverBlogClient.search(eq(content.getTitle() + " 성지 후기"), eq(50))).willReturn(List.of(
+                    new NaverBlogClient.BlogItem("겹침후기", "https://blog.naver.com/dup/1", "20260701"),
+                    new NaverBlogClient.BlogItem("추가후기", "https://blog.naver.com/extra/2", "20260702")));
+            given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
+            given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
+                    "openai", 2, 2, List.of(), List.of(), List.of()));
+
+            // when
+            routeVerificationService.verify(content.getId());
+
+            // then — 두 쿼리 결과를 링크 기준으로 합쳐 중복 없이 본문 조회
+            then(naverBlogClient).should(times(1)).search(eq(content.getTitle() + " 성지순례"), eq(50));
+            then(naverBlogClient).should(times(1)).search(eq(content.getTitle() + " 성지 후기"), eq(50));
+            then(postFetcher).should(times(2)).fetchText(anyString());
+        }
+
+        @Test
+        @DisplayName("언급(spotMentions)의 postIndexes를 출처(제목·링크·날짜)로 매핑한다")
+        void mapsMentionSources() {
+            // given
+            Content content = savedContentWithSpot();
+            given(naverBlogClient.enabled()).willReturn(true);
+            given(naverBlogClient.search(anyString(), anyInt())).willReturn(List.of(
+                    new NaverBlogClient.BlogItem("최신후기", "https://blog.naver.com/new/1", "20260705"),
+                    new NaverBlogClient.BlogItem("감상평", "https://blog.naver.com/essay/2", "20250101")
+            ));
+            given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
+            given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
+                    "openai", 2, 1,
+                    List.of(new VerifyResult.SpotMention(1L, 2, List.of(0, 1))),
+                    List.of(), List.of()));
+
+            // when
+            RouteVerificationResponse response = routeVerificationService.verify(content.getId());
+
+            // then — 언급 출처 2건 (visited 아니어도 언급 출처로 노출)
+            assertThat(response.spotMentions()).hasSize(1);
+            var mention = response.spotMentions().get(0);
+            assertThat(mention.count()).isEqualTo(2);
+            assertThat(mention.sources()).extracting(RouteVerificationResponse.Source::title)
+                    .containsExactly("최신후기", "감상평");
         }
 
         @Test
