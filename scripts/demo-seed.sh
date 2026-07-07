@@ -17,6 +17,8 @@ CONTENTS=(
   "러브라이브! 선샤인!!|누마즈를 무대로 한 Aqours의 성지순례|165553"
   "러브라이브! 니지가사키|도쿄 오다이바를 무대로 한 니지동 성지순례|296659"
   "데이트 어 라이브|마치다·타마 일대를 무대로 한 텐구시 성지순례|49131"
+  "극장판 체인소맨: 레제편|간다 일대를 무대로 한 레제편 성지순례|470660"
+  "스즈메의 문단속|규슈에서 도호쿠까지, 스즈메의 여정을 따라가는 로드무비 성지순례|362577"
 )
 
 echo "[1/4] 관리자 가입 (이미 있으면 무시)"
@@ -35,13 +37,17 @@ TOKEN=$(curl -sf -X POST "$BASE_URL/api/auth/login" -H "Content-Type: applicatio
 
 for entry in "${CONTENTS[@]}"; do
   IFS='|' read -r TITLE DESC BANGUMI <<< "$entry"
+  # SQL 이스케이프 (μ's 아포스트로피 대응) — ESCAPED
+  T_SQL=$(printf %s "$TITLE" | sed "s/'/''/g")
+  D_SQL=$(printf %s "$DESC" | sed "s/'/''/g")
   docker exec "$MYSQL_CONTAINER" mysql --default-character-set=utf8mb4 \
     -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e \
     "INSERT INTO contents (title, category, country, description)
-     SELECT '$TITLE','ANIME','JP','$DESC'
-     WHERE NOT EXISTS (SELECT 1 FROM contents WHERE title='$TITLE');"
-  CONTENT_ID=$(docker exec "$MYSQL_CONTAINER" mysql -N -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" \
-    -e "SELECT id FROM contents WHERE title='$TITLE' LIMIT 1;")
+     SELECT '$T_SQL','ANIME','JP','$D_SQL'
+     WHERE NOT EXISTS (SELECT 1 FROM contents WHERE title='$T_SQL');"
+  CONTENT_ID=$(docker exec "$MYSQL_CONTAINER" mysql -N --default-character-set=utf8mb4 \
+    -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" \
+    -e "SELECT id FROM contents WHERE title='$T_SQL' LIMIT 1;")
   echo "  → $TITLE (content=$CONTENT_ID, bangumi=$BANGUMI)"
   curl -sf -X POST "$BASE_URL/api/admin/contents/$CONTENT_ID/spots/import" \
     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
