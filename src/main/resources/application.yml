@@ -46,6 +46,9 @@ seongjiduk:
   geocoding:
     google:
       api-key: ${GOOGLE_MAPS_API_KEY:}   # 비면 지오코딩 생략, 작품 city로 fallback
+  naver:
+    client-id: ${NAVER_CLIENT_ID:}       # 비면 블로그 동선 검증 비활성
+    client-secret: ${NAVER_CLIENT_SECRET:}
 
 custom:
   jwt:

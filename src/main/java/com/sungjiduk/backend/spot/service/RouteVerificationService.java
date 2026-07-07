@@ -1,11 +1,11 @@
 package com.sungjiduk.backend.spot.service;
 
 import com.sungjiduk.backend.content.repository.ContentRepository;
+import com.sungjiduk.backend.content.service.ContentService;
 import com.sungjiduk.backend.spot.dto.response.RouteVerificationResponse;
 import com.sungjiduk.backend.spot.infra.AiRouteVerifyClient;
 import com.sungjiduk.backend.spot.infra.BlogPostFetcher;
 import com.sungjiduk.backend.spot.infra.NaverBlogClient;
-import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,26 +14,79 @@ import org.springframework.transaction.annotation.Transactional;
 public class RouteVerificationService {
 
     private final ContentRepository contentRepository;
-    private final PilgrimageSpotRepository spotRepository;
+    private final ContentService contentService;
     private final NaverBlogClient naverBlogClient;
     private final BlogPostFetcher postFetcher;
     private final AiRouteVerifyClient aiRouteVerifyClient;
 
     public RouteVerificationService(
             ContentRepository contentRepository,
-            PilgrimageSpotRepository spotRepository,
+            ContentService contentService,
             NaverBlogClient naverBlogClient,
             BlogPostFetcher postFetcher,
             AiRouteVerifyClient aiRouteVerifyClient
     ) {
         this.contentRepository = contentRepository;
-        this.spotRepository = spotRepository;
+        this.contentService = contentService;
         this.naverBlogClient = naverBlogClient;
         this.postFetcher = postFetcher;
         this.aiRouteVerifyClient = aiRouteVerifyClient;
     }
 
+    private static final int SEARCH_COUNT = 25;
+    private static final int MAX_POSTS = 12;
+
+    /** 작품별 검증 결과 캐시 — 외부 API·LLM 비용 절약. 빈 결과(usedPostCount=0)는 캐시하지 않아 재시도 가능. */
+    private final java.util.Map<Long, RouteVerificationResponse> cache = new java.util.concurrent.ConcurrentHashMap<>();
+
     public RouteVerificationResponse verify(Long contentId) {
-        throw new UnsupportedOperationException("not implemented yet");
+        RouteVerificationResponse cached = cache.get(contentId);
+        if (cached != null) {
+            return cached;
+        }
+        if (!naverBlogClient.enabled()) {
+            return RouteVerificationResponse.unavailable(contentId);
+        }
+        var content = contentRepository.findByIdOrThrow(contentId);
+        // 한국 블로그는 한국어 표기를 쓰므로 koreanName 포함 목록(설명 캐시)을 재사용해 매칭률을 높인다
+        var spots = contentService.findContentSpots(contentId).spots();
+
+        var items = naverBlogClient.search(content.getTitle() + " 성지순례", SEARCH_COUNT);
+        // 링크 중복 제거 후 본문 확보(모바일 뷰) — 원문은 이 요청 스코프에서만 사용
+        java.util.List<AiRouteVerifyClient.VerifyRequest.BlogPost> posts = new java.util.ArrayList<>();
+        java.util.Set<String> seenLinks = new java.util.HashSet<>();
+        for (var item : items) {
+            if (posts.size() >= MAX_POSTS || item.link() == null || !seenLinks.add(item.link())) {
+                continue;
+            }
+            postFetcher.fetchText(item.link())
+                    .ifPresent(text -> posts.add(new AiRouteVerifyClient.VerifyRequest.BlogPost(item.title(), text)));
+        }
+        if (posts.isEmpty()) {
+            return new RouteVerificationResponse(contentId, true, items.size(), 0, java.util.List.of(), java.util.List.of());
+        }
+
+        try {
+            var result = aiRouteVerifyClient.verify(new AiRouteVerifyClient.VerifyRequest(
+                    new AiRouteVerifyClient.VerifyRequest.Content(content.getId(), content.getTitle()),
+                    spots.stream().map(spot -> new AiRouteVerifyClient.VerifyRequest.RouteSpot(
+                            spot.id(), spot.name(), spot.koreanName())).toList(),
+                    posts));
+            if (result == null) {
+                return new RouteVerificationResponse(contentId, true, posts.size(), 0, java.util.List.of(), java.util.List.of());
+            }
+            RouteVerificationResponse response = new RouteVerificationResponse(
+                    contentId, true, result.postCount(), result.usedPostCount(),
+                    result.spotMentions() == null ? java.util.List.of() : result.spotMentions().stream()
+                            .map(m -> new RouteVerificationResponse.SpotMention(m.spotId(), m.count())).toList(),
+                    result.verifiedPairs() == null ? java.util.List.of() : result.verifiedPairs().stream()
+                            .map(v -> new RouteVerificationResponse.VerifiedPair(v.fromSpotId(), v.toSpotId(), v.count())).toList());
+            if (response.usedPostCount() > 0) {
+                cache.put(contentId, response);
+            }
+            return response;
+        } catch (RuntimeException e) {
+            return new RouteVerificationResponse(contentId, true, posts.size(), 0, java.util.List.of(), java.util.List.of());
+        }
     }
 }
