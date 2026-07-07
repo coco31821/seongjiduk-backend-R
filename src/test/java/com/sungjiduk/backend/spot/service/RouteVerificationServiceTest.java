@@ -232,6 +232,31 @@ class RouteVerificationServiceTest {
         }
 
         @Test
+        @DisplayName("스팟별 팁의 postIndex를 출처(제목·링크·날짜)로 매핑한다")
+        void mapsSpotTipSources() {
+            // given
+            Content content = savedContentWithSpot();
+            given(naverBlogClient.enabled()).willReturn(true);
+            given(naverBlogClient.search(anyString(), anyInt())).willReturn(List.of(
+                    new NaverBlogClient.BlogItem("팁후기", "https://blog.naver.com/tip/1", "20260701")));
+            given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
+            given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
+                    "openai", 1, 1, List.of(), List.of(), List.of(),
+                    List.of(new VerifyResult.SpotTips(1L,
+                            List.of(new VerifyResult.SpotTips.Tip("한정 에마는 오전에 소진된다", 0))))));
+
+            // when
+            RouteVerificationResponse response = routeVerificationService.verify(content.getId());
+
+            // then
+            assertThat(response.spotTips()).hasSize(1);
+            var tips = response.spotTips().get(0);
+            assertThat(tips.spotId()).isEqualTo(1L);
+            assertThat(tips.tips().get(0).tip()).isEqualTo("한정 에마는 오전에 소진된다");
+            assertThat(tips.tips().get(0).source().title()).isEqualTo("팁후기");
+        }
+
+        @Test
         @DisplayName("본문을 하나도 못 얻으면 ai를 부르지 않고 빈 결과를 반환한다")
         void skipsAiWhenNoTexts() {
             // given
