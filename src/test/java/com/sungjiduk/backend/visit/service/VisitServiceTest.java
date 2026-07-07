@@ -80,6 +80,9 @@ class VisitServiceTest {
             // then
             assertThat(response.visitId()).isNotNull();
             assertThat(response.spotName()).isEqualTo("神田明神");
+            // 성지 여권: 방문을 작품별로 묶기 위한 매핑 정보
+            assertThat(response.contentId()).isNotNull();
+            assertThat(response.contentTitle()).isEqualTo("러브라이브!");
             var saved = visitRecordRepository.findById(response.visitId()).orElseThrow();
             assertThat(saved.getUser().getId()).isEqualTo(user.getId());
             assertThat(saved.getNote()).isEqualTo("첫 성지 인증");
