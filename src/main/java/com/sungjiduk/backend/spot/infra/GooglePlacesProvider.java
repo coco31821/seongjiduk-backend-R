@@ -34,6 +34,15 @@ public class GooglePlacesProvider implements NearbyAttractionsProvider {
 
     @Override
     public List<Attraction> findNearby(double lat, double lng) {
+        return search(lat, lng, "tourist_attraction", "명소");
+    }
+
+    @Override
+    public List<Attraction> findNearbyRestaurants(double lat, double lng) {
+        return search(lat, lng, "restaurant", "식당");
+    }
+
+    private List<Attraction> search(double lat, double lng, String includedType, String defaultCategory) {
         if (apiKey == null || apiKey.isBlank()) {
             return List.of();
         }
@@ -44,7 +53,7 @@ public class GooglePlacesProvider implements NearbyAttractionsProvider {
                     .header("X-Goog-Api-Key", apiKey)
                     .header("X-Goog-FieldMask", FIELD_MASK)
                     .body(Map.of(
-                            "includedTypes", List.of("tourist_attraction"),
+                            "includedTypes", List.of(includedType),
                             "maxResultCount", 20,
                             "languageCode", "ko",
                             "locationRestriction", Map.of("circle", Map.of(
@@ -59,7 +68,7 @@ public class GooglePlacesProvider implements NearbyAttractionsProvider {
                     .filter(p -> p.displayName() != null && p.location() != null)
                     .map(p -> new Attraction(
                             p.displayName().text(),
-                            p.primaryTypeDisplayName() == null ? "명소" : p.primaryTypeDisplayName().text(),
+                            p.primaryTypeDisplayName() == null ? defaultCategory : p.primaryTypeDisplayName().text(),
                             p.rating(),
                             p.userRatingCount(),
                             p.location().latitude(),
