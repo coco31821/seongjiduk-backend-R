@@ -203,6 +203,28 @@ class SpotImportServiceTest {
         }
 
         @Test
+        @DisplayName("originURL 없는 포인트도 저장한다 (출처 레코드만 생략)")
+        void savesPointWithoutOriginUrl() {
+            // given — 스즈메 등 일부 포인트는 출처 URL이 없음 (SpotReference.url NOT NULL 위반으로 전체 실패하던 케이스)
+            Content content = savedContent();
+            given(anitabiClient.fetchWork(362577L)).willReturn(new AnitabiWork("스즈메의 문단속", "宮崎"));
+            given(anitabiClient.fetchPoints(362577L)).willReturn(List.of(
+                    new AnitabiPoint("s1", "湯平温泉", List.of(33.3, 131.3), "1", "Anitabi", null, null)
+            ));
+            given(reverseGeocoder.reverse(anyDouble(), anyDouble())).willReturn(Optional.empty());
+
+            // when
+            SpotImportResponse response = spotImportService.importSpots(content.getId(), 362577L);
+
+            // then — 성지는 저장, 출처 레코드는 없음
+            assertThat(response.failed()).isZero();
+            assertThat(response.created()).isEqualTo(1);
+            PilgrimageSpot spot = spotRepository.findByContentAndName(content, "湯平温泉").orElseThrow();
+            assertThat(spot.getReferenceUrl()).isNull();
+            assertThat(referenceRepository.findBySpotAndSourceName(spot, "Anitabi")).isEmpty();
+        }
+
+        @Test
         @DisplayName("존재하지 않는 content면 CONTENT_NOT_FOUND 예외를 던진다")
         void throwsWhenContentMissing() {
             // given
