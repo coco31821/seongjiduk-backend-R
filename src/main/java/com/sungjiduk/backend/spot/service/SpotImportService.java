@@ -71,8 +71,12 @@ public class SpotImportService {
                 String address;
                 String city;
                 if (geo.isPresent()) {
-                    address = geo.get().address();
+                    address = geo.get().address() == null ? point.name() : geo.get().address();
+                    // 바다·외딴 좌표는 지오코딩이 성공해도 locality가 없다 — NOT NULL 컬럼이라 폴백 (TX 오염 방지)
                     city = geo.get().city();
+                    if (city == null || city.isBlank()) {
+                        city = work.city() == null || work.city().isBlank() ? "미상" : work.city();
+                    }
                 } else {
                     address = point.name();
                     // 극장판 등 원본 lite에 city가 없는 작품 대응 — NOT NULL 컬럼이라 '미상' 폴백
