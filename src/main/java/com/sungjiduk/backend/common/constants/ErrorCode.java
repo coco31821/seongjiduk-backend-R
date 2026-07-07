@@ -33,6 +33,9 @@ public enum ErrorCode {
     SPOT_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 성지를 찾을 수 없습니다."),
     ANITABI_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "Anitabi 성지 데이터를 불러오지 못했습니다."),
 
+    // Visit쪽
+    VISIT_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 방문 기록을 찾을 수 없습니다."),
+
     ;
     private final HttpStatus status;
     private final String description;
