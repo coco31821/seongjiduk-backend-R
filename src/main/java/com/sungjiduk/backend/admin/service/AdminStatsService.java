@@ -115,7 +115,7 @@ public class AdminStatsService {
             Optional<PilgrimageSpot> pilgrimageSpot = pilgrimageSpotRepository.findById(spotList.getFirst());
 
             if (pilgrimageSpot.isEmpty()) {
-                throw new BusinessException(ErrorCode.PILGRIMAGE_SPOT_NOT_FOUND);
+                throw new BusinessException(ErrorCode.SPOT_NOT_FOUND);
             }
 
             return pilgrimageSpot.get().getName();
