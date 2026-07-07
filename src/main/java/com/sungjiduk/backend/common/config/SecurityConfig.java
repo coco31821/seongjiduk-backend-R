@@ -39,6 +39,8 @@ public class SecurityConfig {
                                 "/api/booking-links"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/trips/*").permitAll()
+                        // 명세(05) 기준 재생성은 생성과 동일하게 비회원 허용("선택" 인증)
+                        .requestMatchers(HttpMethod.POST, "/api/trips/*/regenerate").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/events").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")  // 관리자 전용 페이지
                         .anyRequest().authenticated()

@@ -1,12 +1,16 @@
 package com.sungjiduk.backend.user.entity;
 
 import com.sungjiduk.backend.common.BaseEntity;
+import com.sungjiduk.backend.trip.entity.TripPlan;
 import com.sungjiduk.backend.user.constants.Role;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /*
     USER {
@@ -68,8 +72,8 @@ public class User extends BaseEntity {
 //  @OneToMany(mappedBy = "user")
 //  private List<UserFavoriteContent> userFavoriteContents = new ArrayList<>();
 
-//  @OneToMany(mappedBy = "user")
-//  private List<TripPlan> tripPlans = new ArrayList<>();
+    @OneToMany(mappedBy = "user")
+    private List<TripPlan> tripPlans = new ArrayList<>();
 
 //  @OneToMany(mappedBy = "user")
 //  private List<VisitRecord> visitRecords = new ArrayList<>();

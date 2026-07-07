@@ -6,5 +6,6 @@
     reverse_proxy /v3/api-docs* backend:8080
     reverse_proxy /actuator/health backend:8080
 
-    respond "Seongjiduk backend is running" 200
+    # 그 외 전부 프론트엔드 SPA (nginx가 index.html 폴백 처리)
+    reverse_proxy frontend:80
 }

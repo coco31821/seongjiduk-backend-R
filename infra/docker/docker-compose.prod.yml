@@ -19,12 +19,25 @@ services:
     networks:
       - seongjiduk
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - seongjiduk
+
   ai-service:
     image: ${AI_IMAGE:-ghcr.io/sungjiduk/seongjiduk-ai:latest}
     restart: unless-stopped
     environment:
-      AI_MODEL_PROVIDER: ${AI_MODEL_PROVIDER:-mock}
-      AI_API_KEY: ${AI_API_KEY:-}
+      # 키가 없으면 mock 프로바이더로 동작 (llm_provider 스위처블)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-4o}
+      AI_DESCRIBE_CHUNK: ${AI_DESCRIBE_CHUNK:-8}
     networks:
       - seongjiduk
 
@@ -37,12 +50,24 @@ services:
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       AI_SERVICE_BASE_URL: http://ai-service:8000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET}
+      ANITABI_BASE_URL: ${ANITABI_BASE_URL:-https://api.anitabi.cn}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       ai-service:
         condition: service_started
+    networks:
+      - seongjiduk
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/sungjiduk/seongjiduk-frontend:latest}
+    restart: unless-stopped
     networks:
       - seongjiduk
 
@@ -60,6 +85,7 @@ services:
       - caddy_config:/config
     depends_on:
       - backend
+      - frontend
     networks:
       - seongjiduk
 
@@ -80,6 +106,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     networks:
       - seongjiduk
 
