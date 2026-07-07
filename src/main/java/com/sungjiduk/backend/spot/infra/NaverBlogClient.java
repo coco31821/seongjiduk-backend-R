@@ -52,7 +52,7 @@ public class NaverBlogClient {
                 return List.of();
             }
             return response.items().stream()
-                    .map(item -> new BlogItem(stripTags(item.title()), item.link()))
+                    .map(item -> new BlogItem(stripTags(item.title()), item.link(), item.postdate()))
                     .toList();
         } catch (RuntimeException e) {
             return List.of();
@@ -63,7 +63,7 @@ public class NaverBlogClient {
         return s == null ? "" : s.replaceAll("<[^>]+>", "");
     }
 
-    public record BlogItem(String title, String link) {
+    public record BlogItem(String title, String link, String postdate) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -71,6 +71,6 @@ public class NaverBlogClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record Item(String title, String link) {
+    private record Item(String title, String link, String postdate) {
     }
 }
