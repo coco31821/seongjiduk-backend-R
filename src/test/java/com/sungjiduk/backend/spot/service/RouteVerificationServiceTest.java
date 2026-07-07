@@ -98,7 +98,7 @@ class RouteVerificationServiceTest {
             given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
                     "openai", 2, 2,
-                    List.of(new VerifyResult.SpotMention(1L, 2)),
+                    List.of(new VerifyResult.SpotMention(1L, 2, List.of())),
                     List.of(new VerifyResult.VerifiedPair(1L, 2L, 2)), List.of()));
 
             // when
