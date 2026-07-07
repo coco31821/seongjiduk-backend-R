@@ -2,6 +2,11 @@ package com.sungjiduk.backend.trip.service;
 
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
+import com.sungjiduk.backend.content.service.ContentService;
+import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
+import com.sungjiduk.backend.spot.infra.AiDescribeClient;
+import com.sungjiduk.backend.spot.infra.dto.AiDescribeResult;
+import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
 import com.sungjiduk.backend.trip.dto.response.TripShareResponse;
@@ -49,6 +54,15 @@ class TripServiceTest {
     @Autowired
     private ContentRepository contentRepository;
 
+    @Autowired
+    private PilgrimageSpotRepository spotRepository;
+
+    @Autowired
+    private ContentService contentService;
+
+    @MockitoBean
+    private AiDescribeClient aiDescribeClient;
+
     // TripPlan.content가 FK 필수라 테스트마다 실제 작품 행을 만들어 쓴다.
     private Content content;
 
@@ -60,6 +74,7 @@ class TripServiceTest {
     @BeforeEach
     void setUp() {
         willThrow(new RuntimeException("ai-service down")).given(aiTripClient).generate(any());
+        willThrow(new RuntimeException("describe down")).given(aiDescribeClient).describe(any());
         content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "러브라이브! 설명"));
     }
 
@@ -436,6 +451,37 @@ class TripServiceTest {
             // when / then
             assertThatThrownBy(() -> tripService.regenerate(999L, request))
                     .isInstanceOf(TripNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("AI 체류분이 캐시에 있으면")
+    class AiStayMinutes {
+
+        @Test
+        @DisplayName("일정 stop의 stayMinutes에 엔티티 기본값 대신 AI 추정 분을 쓴다")
+        void usesCachedAiMinutesOverEntityDefault() {
+            // given — describe 캐시에 45분이 적재된 성지 (엔티티 값은 30분)
+            PilgrimageSpot spot = spotRepository.save(PilgrimageSpot.create(
+                    content, "とんかつ屋さん", "東京都千代田区",
+                    new java.math.BigDecimal("35.7020000"), new java.math.BigDecimal("139.7680000"),
+                    "千代田区", 30, null));
+            org.mockito.BDDMockito.willReturn(new AiDescribeResult(
+                    content.getId(), "openai",
+                    List.of(new AiDescribeResult.AiSpotDescription(
+                            spot.getId(), "9화의 돈카츠 가게", "실제 모델 식당", "돈카츠야상", 45))))
+                    .given(aiDescribeClient).describe(any());
+            contentService.findContentSpots(content.getId()); // 캐시 적재 (프리웜과 동일 경로)
+
+            // when — ai-service 미가용 → 로컬 폴백 배치
+            TripResponse response = tripService.generate(new TripGenerateRequest(
+                    content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                    List.of(spot.getId()), List.of(), null, null, null));
+
+            // then
+            TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
+            TripStop stop = saved.getDays().get(0).getStops().get(0);
+            assertThat(stop.getStayMinutes()).isEqualTo(45);
         }
     }
 
