@@ -105,4 +105,18 @@ public class TripPlan {
             this.shareToken = token;
         }
     }
+
+    /** 비회원이 만든 플랜(소유자 없음) 여부 */
+    public boolean isUnowned() {
+        return user == null;
+    }
+
+    public boolean isOwnedBy(Long userId) {
+        return user != null && user.getId() != null && user.getId().equals(userId);
+    }
+
+    /** 비회원 생성 플랜을 로그인 사용자가 저장/공유할 때 소유권을 가져간다 */
+    public void assignOwner(User owner) {
+        this.user = owner;
+    }
 }

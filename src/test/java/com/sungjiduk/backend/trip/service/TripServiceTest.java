@@ -11,6 +11,10 @@ import com.sungjiduk.backend.spot.infra.AiDescribeClient;
 import com.sungjiduk.backend.spot.infra.dto.AiDescribeResult;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import com.sungjiduk.backend.spot.service.RouteVerificationService;
+import com.sungjiduk.backend.user.entity.User;
+import com.sungjiduk.backend.user.repository.UserRepository;
+import com.sungjiduk.backend.common.constants.ErrorCode;
+import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.trip.infra.dto.AiTripRequest;
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
@@ -60,6 +64,11 @@ class TripServiceTest {
     private AiRequestLogRepository aiRequestLogRepository;
 
     @Autowired
+    private UserRepository userRepository;
+
+    private User member;
+
+    @Autowired
     private ContentRepository contentRepository;
 
     @Autowired
@@ -87,6 +96,14 @@ class TripServiceTest {
         willThrow(new RuntimeException("ai-service down")).given(aiTripClient).generate(any());
         willThrow(new RuntimeException("describe down")).given(aiDescribeClient).describe(any());
         content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "러브라이브! 설명"));
+        member = userRepository.save(User.builder()
+                .email("fan@example.com").passwordHash("hash").nickname("muse_fan").build());
+    }
+
+    private TripGenerateRequest defaultRequest() {
+        return new TripGenerateRequest(
+                content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
+                List.of(10L), List.of(), null, null, null);
     }
 
     @Nested
@@ -107,8 +124,8 @@ class TripServiceTest {
                     new TripGenerateRequest.AttractionInput("간다 신사", "신사", 35.702, 139.768, "https://maps/kanda"));
 
             // when — 같은 관광지로 두 번 생성해도 한 행만 생긴다
-            TripResponse first = tripService.generate(requestWith(attractions));
-            tripService.generate(requestWith(attractions));
+            TripResponse first = tripService.generate(null, requestWith(attractions));
+            tripService.generate(null, requestWith(attractions));
 
             // then
             assertThat(attractionRepository.findAll()).hasSize(1);
@@ -121,12 +138,12 @@ class TripServiceTest {
         @DisplayName("재생성 시 selectedAttractionIds로 기존 관광지를 유지한다")
         void regenerateKeepsAttractionsByIds() {
             // given
-            TripResponse created = tripService.generate(requestWith(java.util.List.of(
+            TripResponse created = tripService.generate(null, requestWith(java.util.List.of(
                     new TripGenerateRequest.AttractionInput("간다 신사", "신사", 35.702, 139.768, "https://maps/kanda"))));
             Long attractionId = attractionRepository.findAll().get(0).getId();
 
             // when
-            TripResponse regenerated = tripService.regenerate(created.tripId(), new TripGenerateRequest(
+            TripResponse regenerated = tripService.regenerate(null, created.tripId(), new TripGenerateRequest(
                     content.getId(), 1, "NORMAL", "Tokyo", "PILGRIMAGE_ONLY",
                     java.util.List.of(10L), java.util.List.of(), null, java.util.List.of(attractionId), null));
 
@@ -150,7 +167,7 @@ class TripServiceTest {
                     List.of(1L, 2L, 3L), List.of(), null, null, null);
 
             // when
-            TripResponse response = tripService.generate(request);
+            TripResponse response = tripService.generate(null, request);
 
             // then
             assertThat(response.tripId()).isNotNull();
@@ -169,7 +186,7 @@ class TripServiceTest {
                     List.of(10L, 20L, 30L, 40L), List.of(), null, null, null);
 
             // when
-            TripResponse response = tripService.generate(request);
+            TripResponse response = tripService.generate(null, request);
 
             // then
             TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
@@ -192,7 +209,7 @@ class TripServiceTest {
                     List.of(10L, 20L, 30L), List.of(20L), null, null, null);
 
             // when
-            TripResponse response = tripService.generate(request);
+            TripResponse response = tripService.generate(null, request);
 
             // then
             TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
@@ -212,7 +229,7 @@ class TripServiceTest {
                     List.of(10L, 20L, 30L, 40L), List.of(), null, null, null);
 
             // when
-            TripResponse response = tripService.generate(request);
+            TripResponse response = tripService.generate(null, request);
 
             // then
             assertThat(response.days()).hasSize(2);
@@ -232,7 +249,7 @@ class TripServiceTest {
         @DisplayName("저장된 일정의 Day와 stop을 담아 반환한다")
         void returnsTripDetail() {
             // given
-            TripResponse created = tripService.generate(new TripGenerateRequest(
+            TripResponse created = tripService.generate(null, new TripGenerateRequest(
                     content.getId(), 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
                     List.of(10L, 20L, 30L, 40L), List.of(), null, null, null));
 
@@ -270,12 +287,12 @@ class TripServiceTest {
         void returnsTripSummaries() {
             // given
             tripPlanRepository.save(TripPlan.builder()
-                    .content(content).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
+                    .user(member).content(content).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
             tripPlanRepository.save(TripPlan.builder()
-                    .content(content).durationDays(3).title("뮤즈 3일 루트").status(TripStatus.DRAFT).build());
+                    .user(member).content(content).durationDays(3).title("뮤즈 3일 루트").status(TripStatus.DRAFT).build());
 
             // when
-            List<TripSummaryResponse> result = tripService.findMyTrips();
+            List<TripSummaryResponse> result = tripService.findMyTrips(member.getId());
 
             // then
             assertThat(result).extracting(TripSummaryResponse::title)
@@ -288,7 +305,7 @@ class TripServiceTest {
         @DisplayName("일정이 없으면 빈 목록을 반환한다")
         void returnsEmptyWhenNone() {
             // when
-            List<TripSummaryResponse> result = tripService.findMyTrips();
+            List<TripSummaryResponse> result = tripService.findMyTrips(member.getId());
 
             // then
             assertThat(result).isEmpty();
@@ -304,14 +321,14 @@ class TripServiceTest {
         void marksDraftPlanAsSaved() {
             // given
             TripPlan draft = tripPlanRepository.save(TripPlan.builder()
-                    .content(content)
+                    .user(member).content(content)
                     .durationDays(2)
                     .title("성지순례 2일 루트")
                     .status(TripStatus.DRAFT)
                     .build());
 
             // when
-            TripSummaryResponse response = tripService.save(draft.getId());
+            TripSummaryResponse response = tripService.save(member.getId(), draft.getId());
 
             // then
             assertThat(response.tripId()).isEqualTo(draft.getId());
@@ -328,7 +345,7 @@ class TripServiceTest {
             Long missingTripId = 999L;
 
             // when / then
-            assertThatThrownBy(() -> tripService.save(missingTripId))
+            assertThatThrownBy(() -> tripService.save(member.getId(), missingTripId))
                     .isInstanceOf(TripNotFoundException.class);
         }
     }
@@ -342,14 +359,14 @@ class TripServiceTest {
         void deletesTrip() {
             // given
             TripPlan plan = tripPlanRepository.save(TripPlan.builder()
-                    .content(content)
+                    .user(member).content(content)
                     .durationDays(2)
                     .title("성지순례 2일 루트")
                     .status(TripStatus.SAVED)
                     .build());
 
             // when
-            tripService.delete(plan.getId());
+            tripService.delete(member.getId(), plan.getId());
 
             // then
             assertThat(tripPlanRepository.findById(plan.getId())).isEmpty();
@@ -362,7 +379,7 @@ class TripServiceTest {
             Long missingTripId = 999L;
 
             // when / then
-            assertThatThrownBy(() -> tripService.delete(missingTripId))
+            assertThatThrownBy(() -> tripService.delete(member.getId(), missingTripId))
                     .isInstanceOf(TripNotFoundException.class);
         }
     }
@@ -376,10 +393,10 @@ class TripServiceTest {
         void issuesShareTokenAndReturnsResponse() {
             // given
             TripPlan plan = tripPlanRepository.save(TripPlan.builder()
-                    .content(content).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
+                    .user(member).content(content).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
 
             // when
-            TripShareResponse response = tripService.share(plan.getId());
+            TripShareResponse response = tripService.share(member.getId(), plan.getId());
 
             // then
             assertThat(response.tripId()).isEqualTo(plan.getId());
@@ -393,12 +410,12 @@ class TripServiceTest {
         void keepsSameTokenOnReshare() {
             // given
             TripPlan plan = tripPlanRepository.save(TripPlan.builder()
-                    .content(content).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
+                    .user(member).content(content).durationDays(2).title("뮤즈 2일 루트").status(TripStatus.SAVED).build());
 
             // when
-            tripService.share(plan.getId());
+            tripService.share(member.getId(), plan.getId());
             String firstToken = tripPlanRepository.findById(plan.getId()).orElseThrow().getShareToken();
-            tripService.share(plan.getId());
+            tripService.share(member.getId(), plan.getId());
             String secondToken = tripPlanRepository.findById(plan.getId()).orElseThrow().getShareToken();
 
             // then
@@ -413,7 +430,7 @@ class TripServiceTest {
             Long missingTripId = 999L;
 
             // when / then
-            assertThatThrownBy(() -> tripService.share(missingTripId))
+            assertThatThrownBy(() -> tripService.share(member.getId(), missingTripId))
                     .isInstanceOf(TripNotFoundException.class);
         }
     }
@@ -426,12 +443,12 @@ class TripServiceTest {
         @DisplayName("기존 일정에 추가/제외 스팟을 반영해 재배치한다")
         void reflectsAddedAndExcludedSpots() {
             // given
-            TripResponse created = tripService.generate(new TripGenerateRequest(
+            TripResponse created = tripService.generate(null, new TripGenerateRequest(
                     content.getId(), 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
                     List.of(10L, 20L), List.of(), null, null, null));
 
             // when — 30 추가, 20 제외
-            TripResponse result = tripService.regenerate(created.tripId(), new TripGenerateRequest(
+            TripResponse result = tripService.regenerate(null, created.tripId(), new TripGenerateRequest(
                     content.getId(), 2, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
                     List.of(10L, 20L, 30L), List.of(20L), null, null, null));
 
@@ -460,7 +477,7 @@ class TripServiceTest {
                     List.of(10L), List.of(), null, null, null);
 
             // when / then
-            assertThatThrownBy(() -> tripService.regenerate(999L, request))
+            assertThatThrownBy(() -> tripService.regenerate(null, 999L, request))
                     .isInstanceOf(TripNotFoundException.class);
         }
     }
@@ -485,7 +502,7 @@ class TripServiceTest {
             contentService.findContentSpots(content.getId()); // 캐시 적재 (프리웜과 동일 경로)
 
             // when — ai-service 미가용 → 로컬 폴백 배치
-            TripResponse response = tripService.generate(new TripGenerateRequest(
+            TripResponse response = tripService.generate(null, new TripGenerateRequest(
                     content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
                     List.of(spot.getId()), List.of(), null, null, null));
 
@@ -508,7 +525,7 @@ class TripServiceTest {
                     .willReturn(List.of(List.of(5L, 6L)));
 
             // when — ai 미가용이라 폴백하지만 요청 자체는 보낸다
-            tripService.generate(new TripGenerateRequest(
+            tripService.generate(null, new TripGenerateRequest(
                     content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
                     List.of(10L), List.of(), null, null, null));
 
@@ -516,6 +533,87 @@ class TripServiceTest {
             var captor = org.mockito.ArgumentCaptor.forClass(AiTripRequest.class);
             org.mockito.BDDMockito.then(aiTripClient).should().generate(captor.capture());
             assertThat(captor.getValue().verifiedCourses()).containsExactly(List.of(5L, 6L));
+        }
+    }
+
+    @Nested
+    @DisplayName("Trip 소유권은")
+    class TripOwnership {
+
+        @Test
+        @DisplayName("로그인 사용자의 generate는 플랜과 AI 로그에 소유자를 세팅한다")
+        void generateSetsOwnerForAuthenticatedUser() {
+            // when
+            TripResponse response = tripService.generate(member.getId(), defaultRequest());
+
+            // then
+            TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
+            assertThat(saved.getUser().getId()).isEqualTo(member.getId());
+            assertThat(aiRequestLogRepository.findAll().get(0).getUser().getId()).isEqualTo(member.getId());
+        }
+
+        @Test
+        @DisplayName("비회원 generate는 소유자 없이 저장된다 (기존 동작 유지)")
+        void anonymousGenerateStaysUnowned() {
+            // when
+            TripResponse response = tripService.generate(null, defaultRequest());
+
+            // then
+            assertThat(tripPlanRepository.findById(response.tripId()).orElseThrow().isUnowned()).isTrue();
+        }
+
+        @Test
+        @DisplayName("findMyTrips는 내 일정만 반환한다")
+        void findMyTripsFiltersByOwner() {
+            // given
+            User other = userRepository.save(User.builder()
+                    .email("other@example.com").passwordHash("hash").nickname("other").build());
+            tripService.generate(member.getId(), defaultRequest());
+            tripService.generate(other.getId(), defaultRequest());
+            tripService.generate(null, defaultRequest()); // 비회원 플랜
+
+            // when
+            List<TripSummaryResponse> mine = tripService.findMyTrips(member.getId());
+
+            // then
+            assertThat(mine).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("save는 비회원 생성 플랜의 소유권을 가져온다 (로그인 후 이어서 저장 플로우)")
+        void saveClaimsUnownedPlan() {
+            // given
+            TripResponse created = tripService.generate(null, defaultRequest());
+
+            // when
+            tripService.save(member.getId(), created.tripId());
+
+            // then
+            assertThat(tripPlanRepository.findById(created.tripId()).orElseThrow()
+                    .isOwnedBy(member.getId())).isTrue();
+        }
+
+        @Test
+        @DisplayName("남의 플랜은 save·delete·share·regenerate 전부 FORBIDDEN")
+        void forbidsActionsOnOthersPlan() {
+            // given
+            User other = userRepository.save(User.builder()
+                    .email("other@example.com").passwordHash("hash").nickname("other").build());
+            TripResponse created = tripService.generate(other.getId(), defaultRequest());
+
+            // when / then
+            assertThatThrownBy(() -> tripService.save(member.getId(), created.tripId()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+            assertThatThrownBy(() -> tripService.delete(member.getId(), created.tripId()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+            assertThatThrownBy(() -> tripService.share(member.getId(), created.tripId()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+            assertThatThrownBy(() -> tripService.regenerate(member.getId(), created.tripId(), defaultRequest()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
         }
     }
 
@@ -532,7 +630,7 @@ class TripServiceTest {
                     List.of(10L), List.of(), null, null, null);
 
             // when
-            TripResponse response = tripService.generate(request);
+            TripResponse response = tripService.generate(null, request);
 
             // then
             var logs = aiRequestLogRepository.findAll();
@@ -558,7 +656,7 @@ class TripServiceTest {
                     List.of(10L), List.of(), null, null, null);
 
             // when
-            tripService.generate(request);
+            tripService.generate(null, request);
 
             // then
             assertThat(aiRequestLogRepository.findAll())
@@ -571,12 +669,12 @@ class TripServiceTest {
         @DisplayName("regenerate 시 TRIP_REGENERATE 로그가 추가된다")
         void logsRegenerate() {
             // given
-            TripResponse created = tripService.generate(new TripGenerateRequest(
+            TripResponse created = tripService.generate(null, new TripGenerateRequest(
                     content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
                     List.of(10L), List.of(), null, null, null));
 
             // when
-            tripService.regenerate(created.tripId(), new TripGenerateRequest(
+            tripService.regenerate(null, created.tripId(), new TripGenerateRequest(
                     content.getId(), 1, "NORMAL", "Tokyo Station", "PILGRIMAGE_ONLY",
                     List.of(10L, 20L), List.of(), null, null, null));
 
@@ -609,7 +707,7 @@ class TripServiceTest {
                     List.of(10L), List.of(), null, null, null);
 
             // when
-            TripResponse response = tripService.generate(request);
+            TripResponse response = tripService.generate(null, request);
 
             // then
             TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
