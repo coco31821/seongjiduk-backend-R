@@ -15,31 +15,33 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.jdbc.Sql;
 
-@Sql("classpath:fixtures/admin/test_data/findMostFrequentSpotToday_test_data.sql")
-@DisplayName("TripStopRepository")
-@SpringBootTest
-public class TripStopRepositoryTest {
-    @Autowired
-    TripStopRepository tripStopRepository;
+import com.sungjiduk.backend.content.entity.Content;
 
+@Sql("classpath:fixtures/admin/test_data/findMostFrequentContentIdToday_test_data.sql")
+@DisplayName("TripPlanRepository")
+@SpringBootTest
+public class TripPlanRepositoryTest {
     @Nested
-    @DisplayName("findMostFrequentSpotToday는")
-    class findMostFrequentSpotToday {
+    @DisplayName("findMostFrequentContent는")
+    class findMostFrequentContent {
+        @Autowired
+        TripPlanRepository tripPlanRepository;
+
         @Test
-        @DisplayName("특정 날짜 기준으로 가장 많이 등록된 성지의 id값을 가진 리스트를 반환해야 한다.")
+        @DisplayName("특정 날짜 기준으로 가장 많이 등록된 작품의 리스트를 반환해야 한다.")
         void test() {
             // given
             LocalDate localDate = LocalDate.of(2026, 7, 4);
 
             // when
-            List<Long> mostFrequentSpotToday = tripStopRepository.findMostFrequentSpotToday(
+            List<Content> mostFrequentSpotToday = tripPlanRepository.findMostFrequentContent(
                 start(localDate),
                 end(localDate),
                 PageRequest.of(0, 1)
             );
 
             // then
-            assertThat(mostFrequentSpotToday.getFirst() == 3);
+            assertThat(mostFrequentSpotToday.getFirst().getId() == 3L);
         }
 
         private LocalDateTime start(LocalDate time) {
