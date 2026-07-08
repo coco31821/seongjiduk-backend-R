@@ -2,6 +2,7 @@ package com.sungjiduk.backend.mission.service;
 
 import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.exception.BusinessException;
+import com.sungjiduk.backend.admin.dto.request.AdminMissionUpdateRequest;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
@@ -186,6 +187,50 @@ class MissionServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(ErrorCode.MISSION_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("관리자 검수는")
+    class AdminReview {
+
+        @Test
+        @DisplayName("미션을 수정하면 필드가 갱신된다 (비활성화 포함)")
+        void updatesMission() {
+            // given
+            Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
+            PilgrimageSpot spot = spotRepository.save(PilgrimageSpot.create(
+                    content, "神田明神", "東京都", new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
+                    "千代田区", 40, null));
+            SpotMission mission = spotMissionRepository.save(SpotMission.create(
+                    spot, "초안", "초안 설명", MissionType.FIND, MissionOrigin.AI));
+
+            // when
+            MissionResponse updated = missionService.updateByAdmin(mission.getId(),
+                    new AdminMissionUpdateRequest("검수됨", "검수 설명", "PHOTO", false));
+
+            // then
+            assertThat(updated.title()).isEqualTo("검수됨");
+            assertThat(updated.missionType()).isEqualTo("PHOTO");
+            assertThat(spotMissionRepository.findById(mission.getId()).orElseThrow().isActive()).isFalse();
+        }
+
+        @Test
+        @DisplayName("미션을 삭제하면 스팟 목록에서 사라진다")
+        void deletesMission() {
+            // given
+            Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
+            PilgrimageSpot spot = spotRepository.save(PilgrimageSpot.create(
+                    content, "神田明神", "東京都", new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
+                    "千代田区", 40, null));
+            SpotMission mission = spotMissionRepository.save(SpotMission.create(
+                    spot, "삭제될 미션", "설명", MissionType.PHOTO, MissionOrigin.AI));
+
+            // when
+            missionService.deleteByAdmin(mission.getId());
+
+            // then
+            assertThat(spotMissionRepository.findBySpotIdOrderByIdAsc(spot.getId())).isEmpty();
         }
     }
 
