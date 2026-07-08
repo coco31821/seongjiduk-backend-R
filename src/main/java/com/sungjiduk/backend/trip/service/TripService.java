@@ -350,7 +350,7 @@ public class TripService {
                                         stop.getReason()))
                                 .toList()))
                 .toList();
-        return new TripResponse(plan.getId(), plan.getTitle(), days, plan.getShareToken());
+        return new TripResponse(plan.getId(), plan.getContent().getId(), plan.getTitle(), days, plan.getShareToken());
     }
 
     @Transactional

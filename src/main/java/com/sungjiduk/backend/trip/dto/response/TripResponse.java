@@ -4,6 +4,7 @@ import java.util.List;
 
 public record TripResponse(
         Long tripId,
+        Long contentId,
         String title,
         List<DayPlan> days,
         String shareText
