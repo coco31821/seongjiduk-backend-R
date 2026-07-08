@@ -49,6 +49,9 @@ seongjiduk:
   naver:
     client-id: ${NAVER_CLIENT_ID:}       # 비면 블로그 동선 검증 비활성
     client-secret: ${NAVER_CLIENT_SECRET:}
+  tosspayments:
+    client-key: ${TOSS_CLIENT_KEY:}
+    secret-key: ${TOSS_SECRET_KEY:}
 
 custom:
   jwt:
