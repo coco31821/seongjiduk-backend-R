@@ -1,5 +1,6 @@
 package com.sungjiduk.backend.mission.service;
 
+import com.sungjiduk.backend.admin.dto.request.AdminMissionUpdateRequest;
 import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.mission.constants.MissionOrigin;
@@ -60,6 +61,32 @@ public class MissionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_NOT_FOUND));
         return visitService.create(userId, new VisitCreateRequest(
                 mission.getSpot().getId(), "미션 완료: " + mission.getTitle(), null));
+    }
+
+    @Transactional(readOnly = true)
+    public List<MissionResponse> findBySpotForAdmin(Long spotId) {
+        return missionRepository.findBySpotIdOrderByIdAsc(spotId).stream()
+                .map(m -> new MissionResponse(m.getId(), m.getSpot().getId(), m.getTitle(),
+                        m.getDescription(), m.getMissionType().name()))
+                .toList();
+    }
+
+    @Transactional
+    public MissionResponse updateByAdmin(Long missionId, AdminMissionUpdateRequest request) {
+        SpotMission mission = missionRepository.findById(missionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_NOT_FOUND));
+        mission.update(request.title(), request.description(),
+                parseType(request.missionType()), request.active() == null || request.active());
+        return new MissionResponse(mission.getId(), mission.getSpot().getId(), mission.getTitle(),
+                mission.getDescription(), mission.getMissionType().name());
+    }
+
+    @Transactional
+    public void deleteByAdmin(Long missionId) {
+        if (!missionRepository.existsById(missionId)) {
+            throw new BusinessException(ErrorCode.MISSION_NOT_FOUND);
+        }
+        missionRepository.deleteById(missionId);
     }
 
     private MissionType parseType(String raw) {
