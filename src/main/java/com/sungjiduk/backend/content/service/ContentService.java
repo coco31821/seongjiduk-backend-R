@@ -5,6 +5,7 @@ import com.sungjiduk.backend.content.dto.response.ContentSpotsResponse;
 import com.sungjiduk.backend.content.dto.response.ContentListResponse;
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
+import com.sungjiduk.backend.mission.service.MissionService;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.infra.AiDescribeClient;
 import com.sungjiduk.backend.spot.infra.dto.AiDescribeRequest;
@@ -13,6 +14,8 @@ import com.sungjiduk.backend.spot.infra.dto.AiDescribeResult.AiSpotDescription;
 import com.sungjiduk.backend.spot.entity.SpotReference;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import com.sungjiduk.backend.spot.repository.SpotReferenceRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,12 +27,15 @@ import java.util.concurrent.ConcurrentHashMap;
 @Transactional(readOnly = true)
 public class ContentService {
 
+    private static final Logger log = LoggerFactory.getLogger(ContentService.class);
+
     private static final String SCENE_IMAGE_SOURCE = "Anitabi:scene-image";
 
     private final ContentRepository contentRepository;
     private final PilgrimageSpotRepository spotRepository;
     private final SpotReferenceRepository referenceRepository;
     private final AiDescribeClient aiDescribeClient;
+    private final MissionService missionService;
 
     /**
      * 성지별 AI 장면 설명 캐시. GPT 호출은 느리고 비용이 들어 같은 성지는 재호출하지 않는다.
@@ -48,12 +54,14 @@ public class ContentService {
             PilgrimageSpotRepository spotRepository,
             SpotReferenceRepository referenceRepository,
             AiDescribeClient aiDescribeClient,
+            MissionService missionService,
             @org.springframework.beans.factory.annotation.Value("${seongjiduk.ai-service.prewarm-model:}") String prewarmModel
     ) {
         this.contentRepository = contentRepository;
         this.spotRepository = spotRepository;
         this.referenceRepository = referenceRepository;
         this.aiDescribeClient = aiDescribeClient;
+        this.missionService = missionService;
         this.prewarmModel = prewarmModel;
     }
 
@@ -200,9 +208,13 @@ public class ContentService {
             }
             result.descriptions().stream()
                     .filter(description -> description.spotId() != null)
-                    .forEach(description -> descriptionCache.put(description.spotId(), description));
+                    .forEach(description -> {
+                        descriptionCache.put(description.spotId(), description);
+                        missionService.saveDrafts(description.spotId(), description.missions());
+                    });
         } catch (RuntimeException e) {
-            // ai-service 미가용 → 설명 없이 목록 반환 (다음 조회에서 재시도)
+            // ai-service 미가용 → 설명 없이 목록 반환 (다음 조회에서 재시도). 삼키되 관측을 위해 로그는 남긴다.
+            log.warn("describe/미션 저장 실패 — content={}: {}", content.getId(), e.toString());
         }
     }
 }

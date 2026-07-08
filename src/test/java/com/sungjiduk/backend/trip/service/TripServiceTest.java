@@ -176,6 +176,7 @@ class TripServiceTest {
 
             // then
             assertThat(response.tripId()).isNotNull();
+            assertThat(response.contentId()).isEqualTo(content.getId());
             TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
             assertThat(saved.getStatus()).isEqualTo(TripStatus.DRAFT);
             assertThat(saved.getContent().getId()).isEqualTo(content.getId());
@@ -263,6 +264,7 @@ class TripServiceTest {
 
             // then
             assertThat(found.tripId()).isEqualTo(created.tripId());
+            assertThat(found.contentId()).isEqualTo(content.getId());
             assertThat(found.days()).hasSize(2);
             List<Long> spotIds = found.days().stream()
                     .flatMap(day -> day.stops().stream())
@@ -502,7 +504,7 @@ class TripServiceTest {
             org.mockito.BDDMockito.willReturn(new AiDescribeResult(
                     content.getId(), "openai",
                     List.of(new AiDescribeResult.AiSpotDescription(
-                            spot.getId(), "9화의 돈카츠 가게", "실제 모델 식당", "돈카츠야상", 45))))
+                            spot.getId(), "9화의 돈카츠 가게", "실제 모델 식당", "돈카츠야상", 45, List.of()))))
                     .given(aiDescribeClient).describe(any());
             contentService.findContentSpots(content.getId()); // 캐시 적재 (프리웜과 동일 경로)
 
