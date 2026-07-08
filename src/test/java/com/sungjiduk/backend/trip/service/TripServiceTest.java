@@ -176,6 +176,7 @@ class TripServiceTest {
 
             // then
             assertThat(response.tripId()).isNotNull();
+            assertThat(response.contentId()).isEqualTo(content.getId());
             TripPlan saved = tripPlanRepository.findById(response.tripId()).orElseThrow();
             assertThat(saved.getStatus()).isEqualTo(TripStatus.DRAFT);
             assertThat(saved.getContent().getId()).isEqualTo(content.getId());
@@ -263,6 +264,7 @@ class TripServiceTest {
 
             // then
             assertThat(found.tripId()).isEqualTo(created.tripId());
+            assertThat(found.contentId()).isEqualTo(content.getId());
             assertThat(found.days()).hasSize(2);
             List<Long> spotIds = found.days().stream()
                     .flatMap(day -> day.stops().stream())
