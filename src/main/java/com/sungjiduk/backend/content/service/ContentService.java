@@ -58,14 +58,33 @@ public class ContentService {
     }
 
     public List<ContentListResponse> findContents(String category, String country) {
-        return contentRepository.findContents(category, country).stream()
+        List<Content> contents = contentRepository.findContents(category, country);
+        Map<Long, String> thumbnails = thumbnailsByContentId(contents);
+        return contents.stream()
                 .map(content -> new ContentListResponse(
                         content.getId(),
                         content.getTitle(),
                         content.getCategory(),
                         content.getCountry(),
-                        spotRepository.countByContentId(content.getId())))
+                        spotRepository.countByContentId(content.getId()),
+                        thumbnails.get(content.getId())))
                 .toList();
+    }
+
+    /**
+     * 작품별 대표 썸네일 — 첫 성지(id 오름차순)의 Anitabi 장면 이미지.
+     * 목록의 모든 작품 이미지를 한 번의 쿼리로 모아(성지 id 오름차순) 작품별 첫 이미지만 남긴다.
+     */
+    private Map<Long, String> thumbnailsByContentId(List<Content> contents) {
+        if (contents.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> contentIds = contents.stream().map(Content::getId).toList();
+        Map<Long, String> thumbnails = new java.util.HashMap<>();
+        for (Object[] row : referenceRepository.findSceneImagesByContentIds(contentIds, SCENE_IMAGE_SOURCE)) {
+            thumbnails.putIfAbsent((Long) row[0], (String) row[1]);
+        }
+        return thumbnails;
     }
 
     public ContentDetailResponse findContent(Long contentId) {
