@@ -52,6 +52,33 @@ public class GoogleReverseGeocoder implements ReverseGeocoder {
         }
     }
 
+    @Override
+    public Optional<LatLng> forward(String address) {
+        if (apiKey == null || apiKey.isBlank() || address == null || address.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            GeocodeResponse response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/maps/api/geocode/json")
+                            .queryParam("address", address)
+                            .queryParam("key", apiKey)
+                            .build())
+                    .retrieve()
+                    .body(GeocodeResponse.class);
+            if (response == null || !"OK".equals(response.status()) || response.results().isEmpty()) {
+                return Optional.empty();
+            }
+            Geometry geometry = response.results().get(0).geometry();
+            if (geometry == null || geometry.location() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new LatLng(geometry.location().lat(), geometry.location().lng()));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
     private String extractCity(GeocodeResult result) {
         return result.addressComponents().stream()
                 .filter(c -> c.types().contains("locality"))
@@ -71,7 +98,8 @@ public class GoogleReverseGeocoder implements ReverseGeocoder {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record GeocodeResult(
             @com.fasterxml.jackson.annotation.JsonProperty("formatted_address") String formattedAddress,
-            @com.fasterxml.jackson.annotation.JsonProperty("address_components") List<AddressComponent> addressComponents
+            @com.fasterxml.jackson.annotation.JsonProperty("address_components") List<AddressComponent> addressComponents,
+            Geometry geometry
     ) {
     }
 
@@ -80,5 +108,13 @@ public class GoogleReverseGeocoder implements ReverseGeocoder {
             @com.fasterxml.jackson.annotation.JsonProperty("long_name") String longName,
             List<String> types
     ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record Geometry(Location location) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record Location(double lat, double lng) {
     }
 }
