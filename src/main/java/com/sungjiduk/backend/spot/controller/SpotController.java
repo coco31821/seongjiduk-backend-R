@@ -9,6 +9,7 @@ import com.sungjiduk.backend.spot.service.SpotService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,6 +33,13 @@ public class SpotController {
     @GetMapping("/api/spots/{spotId}/nearby-attractions")
     public ApiResponse<NearbyAttractionsResponse> nearbyAttractions(@PathVariable Long spotId) {
         return ApiResponse.ok(spotService.findNearbyAttractions(spotId));
+    }
+
+    @GetMapping("/api/spots/{spotId}/nearby")
+    public ApiResponse<NearbyAttractionsResponse> nearbyByTheme(
+            @PathVariable Long spotId,
+            @RequestParam(defaultValue = "SIGHTS") String theme) {
+        return ApiResponse.ok(spotService.findNearbyByTheme(spotId, theme));
     }
 
     @GetMapping("/api/spots/{spotId}/nearby-restaurants")

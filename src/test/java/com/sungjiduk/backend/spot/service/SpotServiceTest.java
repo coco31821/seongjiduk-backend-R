@@ -26,6 +26,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.times;
@@ -60,6 +62,59 @@ class SpotServiceTest {
                 content, "神田明神", "東京都千代田区",
                 new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
                 "千代田区", 40, "https://maps.example/kanda"));
+    }
+
+    @Nested
+    @DisplayName("findNearbyByTheme는")
+    class FindNearbyByTheme {
+
+        @Test
+        @DisplayName("테마에 맞는 Places 타입으로 프로바이더를 부른다 — CAFE→cafe")
+        void mapsThemeToPlacesType() {
+            // given
+            PilgrimageSpot spot = savedSpot();
+            given(attractionsProvider.findNearbyByType(anyDouble(), anyDouble(), eq("cafe"), eq("카페")))
+                    .willReturn(List.of(new Attraction("숨은 카페", "카페", 4.7, 320, 35.70, 139.77, "https://maps/1")));
+
+            // when
+            NearbyAttractionsResponse response = spotService.findNearbyByTheme(spot.getId(), "CAFE");
+
+            // then
+            assertThat(response.attractions()).hasSize(1);
+            assertThat(response.attractions().get(0).name()).isEqualTo("숨은 카페");
+        }
+
+        @Test
+        @DisplayName("테마별 캐시가 분리된다 — CAFE 재조회는 1회, SHOPPING은 별도 호출")
+        void cachesPerTheme() {
+            // given
+            PilgrimageSpot spot = savedSpot();
+            given(attractionsProvider.findNearbyByType(anyDouble(), anyDouble(), anyString(), anyString()))
+                    .willReturn(List.of(new Attraction("장소", "카페", 4.5, 100, 35.70, 139.77, "https://maps/1")));
+
+            // when
+            spotService.findNearbyByTheme(spot.getId(), "CAFE");
+            spotService.findNearbyByTheme(spot.getId(), "CAFE");
+            spotService.findNearbyByTheme(spot.getId(), "SHOPPING");
+
+            // then
+            then(attractionsProvider).should(times(1)).findNearbyByType(anyDouble(), anyDouble(), eq("cafe"), anyString());
+            then(attractionsProvider).should(times(1)).findNearbyByType(anyDouble(), anyDouble(), eq("shopping_mall"), anyString());
+        }
+
+        @Test
+        @DisplayName("모르는 테마는 VALIDATION_FAILED를 던진다")
+        void rejectsUnknownTheme() {
+            // given
+            PilgrimageSpot spot = savedSpot();
+
+            // when / then
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                    () -> spotService.findNearbyByTheme(spot.getId(), "NOODLE"))
+                    .isInstanceOf(com.sungjiduk.backend.common.exception.BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(com.sungjiduk.backend.common.constants.ErrorCode.VALIDATION_FAILED);
+        }
     }
 
     @Nested
