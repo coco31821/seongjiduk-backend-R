@@ -106,6 +106,47 @@ class ContentServiceTest {
             assertThat(contents).extracting(ContentListResponse::title)
                     .contains("러브라이브!", "케이온!");
         }
+
+        @Test
+        @DisplayName("각 작품의 첫 성지 장면 이미지를 대표 썸네일(thumbnailUrl)로 반환한다 — 카드 커버")
+        void includesThumbnailFromFirstSpotSceneImage() {
+            // given
+            Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
+            PilgrimageSpot first = spotRepository.save(PilgrimageSpot.create(
+                    content, "神田明神", "東京都", new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
+                    "千代田区", 40, null));
+            PilgrimageSpot second = spotRepository.save(PilgrimageSpot.create(
+                    content, "秋葉原駅", "東京都", new BigDecimal("35.6980000"), new BigDecimal("139.7730000"),
+                    "千代田区", 20, null));
+            referenceRepository.save(SpotReference.create(
+                    first, "神田明神 EP1", "https://image.anitabi.cn/first.jpg?plan=h160", "Anitabi:scene-image"));
+            referenceRepository.save(SpotReference.create(
+                    second, "秋葉原 EP2", "https://image.anitabi.cn/second.jpg?plan=h160", "Anitabi:scene-image"));
+
+            // when
+            var contents = contentService.findContents(null, null);
+
+            // then — 성지 id 오름차순 첫 성지의 이미지를 대표로 쓴다
+            var found = contents.stream().filter(c -> c.id().equals(content.getId())).findFirst().orElseThrow();
+            assertThat(found.thumbnailUrl()).isEqualTo("https://image.anitabi.cn/first.jpg?plan=h160");
+        }
+
+        @Test
+        @DisplayName("장면 이미지가 없는 작품은 thumbnailUrl이 null이다 (성지 0곳 포함)")
+        void thumbnailNullWhenNoSceneImage() {
+            // given
+            Content content = contentRepository.save(Content.create("케이온!", "ANIME", "JP", "설명"));
+            spotRepository.save(PilgrimageSpot.create(
+                    content, "豊郷小学校", "滋賀県", new BigDecimal("35.2100000"), new BigDecimal("136.2300000"),
+                    "犬上郡", 60, null));
+
+            // when
+            var contents = contentService.findContents(null, null);
+
+            // then
+            var found = contents.stream().filter(c -> c.id().equals(content.getId())).findFirst().orElseThrow();
+            assertThat(found.thumbnailUrl()).isNull();
+        }
     }
 
     @Nested
