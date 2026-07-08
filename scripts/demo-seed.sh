@@ -77,5 +77,9 @@ docker exec -i "$MYSQL_CONTAINER" mysql --default-character-set=utf8mb4 \
 docker exec -i "$MYSQL_CONTAINER" mysql --default-character-set=utf8mb4 \
   -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < "$(dirname "$0")/seed/sherlock-holmes.sql"
 
+echo "[3.7/4] BTS (한국, KPOP) — TourAPI 실좌표 + 수동 보강 시드 (멱등)"
+docker exec -i "$MYSQL_CONTAINER" mysql --default-character-set=utf8mb4 \
+  -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < "$(dirname "$0")/seed/bts.sql"
+
 echo "[4/4] 완료 — 3기수 시드. 임포트가 AI 설명 프리웜을 자동 트리거함(수 분 뒤 첫 조회도 즉시)."
 echo "확인: $BASE_URL/api/contents"
