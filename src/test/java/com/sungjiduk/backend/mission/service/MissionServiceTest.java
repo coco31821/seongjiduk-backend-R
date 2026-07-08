@@ -1,5 +1,7 @@
 package com.sungjiduk.backend.mission.service;
 
+import com.sungjiduk.backend.common.constants.ErrorCode;
+import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
@@ -12,6 +14,10 @@ import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.infra.AiDescribeClient;
 import com.sungjiduk.backend.spot.infra.dto.AiDescribeResult.AiMissionDraft;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
+import com.sungjiduk.backend.user.entity.User;
+import com.sungjiduk.backend.user.repository.UserRepository;
+import com.sungjiduk.backend.visit.dto.response.VisitResponse;
+import com.sungjiduk.backend.visit.repository.VisitRecordRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -25,6 +31,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Transactional
@@ -42,6 +49,12 @@ class MissionServiceTest {
 
     @Autowired
     private PilgrimageSpotRepository spotRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private VisitRecordRepository visitRecordRepository;
 
     @MockitoBean
     private RefreshTokenRepository refreshTokenRepository;
@@ -132,6 +145,47 @@ class MissionServiceTest {
             assertThat(missions.get(0).id()).isEqualTo(active.getId());
             assertThat(missions.get(0).spotId()).isEqualTo(spot.getId());
             assertThat(missions.get(0).missionType()).isEqualTo("FIND");
+        }
+    }
+
+    @Nested
+    @DisplayName("complete는")
+    class Complete {
+
+        @Test
+        @DisplayName("미션 완료 시 해당 스팟 방문 기록을 남긴다 (여권 도장 연동)")
+        void createsVisitRecordOnComplete() {
+            // given
+            User user = userRepository.save(User.builder()
+                    .email("quest@test.com").passwordHash("encoded").nickname("퀘스터").build());
+            Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
+            PilgrimageSpot spot = spotRepository.save(PilgrimageSpot.create(
+                    content, "神田明神", "東京都", new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
+                    "千代田区", 40, null));
+            SpotMission mission = spotMissionRepository.save(SpotMission.create(
+                    spot, "에마 찾기", "설명", MissionType.FIND, MissionOrigin.AI));
+
+            // when
+            VisitResponse visit = missionService.complete(user.getId(), mission.getId());
+
+            // then
+            assertThat(visit.spotId()).isEqualTo(spot.getId());
+            assertThat(visitRecordRepository.findAll())
+                    .anyMatch(v -> v.isOwnedBy(user.getId()) && v.getSpot().getId().equals(spot.getId()));
+        }
+
+        @Test
+        @DisplayName("없는 미션이면 MISSION_NOT_FOUND")
+        void throwsWhenMissionMissing() {
+            // given
+            User user = userRepository.save(User.builder()
+                    .email("quest2@test.com").passwordHash("encoded").nickname("퀘스터2").build());
+
+            // when / then
+            assertThatThrownBy(() -> missionService.complete(user.getId(), 99999L))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.MISSION_NOT_FOUND);
         }
     }
 
