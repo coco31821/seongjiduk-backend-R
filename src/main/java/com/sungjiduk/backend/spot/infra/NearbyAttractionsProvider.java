@@ -13,6 +13,9 @@ public interface NearbyAttractionsProvider {
     /** 주변 식당 — 여정 ⑤(맛집) 레이어. 계약은 관광 명소와 동일한 Attraction. */
     List<Attraction> findNearbyRestaurants(double lat, double lng);
 
+    /** 테마 선택 레이어 — Places includedType을 직접 지정 (cafe, shopping_mall, lodging 등). */
+    List<Attraction> findNearbyByType(double lat, double lng, String placeType, String defaultCategory);
+
     record Attraction(
             String name,
             String category,        // 예: 신사, 공원, 박물관 (Places type 한국어화)

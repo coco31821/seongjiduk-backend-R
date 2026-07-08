@@ -49,7 +49,58 @@ public class SpotService {
     /** 성지별 주변 맛집 캐시 — 관광지와 정렬 기준이 달라(별점순) 분리 보관. */
     private final java.util.Map<Long, NearbyAttractionsResponse> restaurantCache = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /** 테마 선택 레이어 — 테마 → (Places 타입, 기본 카테고리). 볼거리·먹을거리는 기존 전용 경로 재사용. */
+    private static final java.util.Map<String, String[]> THEME_TYPES = java.util.Map.of(
+            "CAFE", new String[]{"cafe", "카페"},
+            "SHOPPING", new String[]{"shopping_mall", "쇼핑"},
+            "LODGING", new String[]{"lodging", "숙소"});
+
+    /** 성지×테마별 캐시 (키: spotId:THEME). 빈 결과는 캐시하지 않는다. */
+    private final java.util.Map<String, NearbyAttractionsResponse> themeCache = new java.util.concurrent.ConcurrentHashMap<>();
+
     private static final int MAX_ATTRACTIONS = 6;
+
+    /**
+     * 테마 선택 주변 장소 — 일정 확인 후 단계에서 사용자가 고른 테마만 얹는다.
+     * SIGHTS/FOOD는 기존 전용 조회(정렬·캐시 포함)로 위임, 나머지는 별점순.
+     */
+    public NearbyAttractionsResponse findNearbyByTheme(Long spotId, String theme) {
+        String key = theme == null ? "" : theme.toUpperCase(java.util.Locale.ROOT);
+        if ("SIGHTS".equals(key)) {
+            return findNearbyAttractions(spotId);
+        }
+        if ("FOOD".equals(key)) {
+            return findNearbyRestaurants(spotId);
+        }
+        String[] mapping = THEME_TYPES.get(key);
+        if (mapping == null) {
+            throw new com.sungjiduk.backend.common.exception.BusinessException(
+                    com.sungjiduk.backend.common.constants.ErrorCode.VALIDATION_FAILED);
+        }
+        String cacheKey = spotId + ":" + key;
+        NearbyAttractionsResponse cached = themeCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        PilgrimageSpot spot = spotRepository.findByIdOrThrow(spotId);
+        var places = attractionsProvider
+                .findNearbyByType(spot.getLat().doubleValue(), spot.getLng().doubleValue(), mapping[0], mapping[1])
+                .stream()
+                .filter(a -> a.rating() != null && a.ratingCount() != null)
+                .sorted(java.util.Comparator
+                        .comparing(NearbyAttractionsProvider.Attraction::rating)
+                        .thenComparing(NearbyAttractionsProvider.Attraction::ratingCount)
+                        .reversed())
+                .limit(MAX_ATTRACTIONS)
+                .map(a -> new NearbyAttractionsResponse.AttractionSummary(
+                        a.name(), a.category(), a.rating(), a.ratingCount(), a.lat(), a.lng(), a.mapsUrl()))
+                .toList();
+        NearbyAttractionsResponse response = new NearbyAttractionsResponse(spotId, places);
+        if (!places.isEmpty()) {
+            themeCache.put(cacheKey, response);
+        }
+        return response;
+    }
 
     /** 주변 맛집 — 별점 높은 순(동점은 리뷰수), 여정 ⑤ 레이어. */
     public NearbyAttractionsResponse findNearbyRestaurants(Long spotId) {

@@ -42,6 +42,11 @@ public class GooglePlacesProvider implements NearbyAttractionsProvider {
         return search(lat, lng, "restaurant", "식당");
     }
 
+    @Override
+    public List<Attraction> findNearbyByType(double lat, double lng, String placeType, String defaultCategory) {
+        return search(lat, lng, placeType, defaultCategory);
+    }
+
     private List<Attraction> search(double lat, double lng, String includedType, String defaultCategory) {
         if (apiKey == null || apiKey.isBlank()) {
             return List.of();
