@@ -502,7 +502,7 @@ class TripServiceTest {
             org.mockito.BDDMockito.willReturn(new AiDescribeResult(
                     content.getId(), "openai",
                     List.of(new AiDescribeResult.AiSpotDescription(
-                            spot.getId(), "9화의 돈카츠 가게", "실제 모델 식당", "돈카츠야상", 45))))
+                            spot.getId(), "9화의 돈카츠 가게", "실제 모델 식당", "돈카츠야상", 45, List.of()))))
                     .given(aiDescribeClient).describe(any());
             contentService.findContentSpots(content.getId()); // 캐시 적재 (프리웜과 동일 경로)
 
