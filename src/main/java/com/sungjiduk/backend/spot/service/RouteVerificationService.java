@@ -18,19 +18,22 @@ public class RouteVerificationService {
     private final NaverBlogClient naverBlogClient;
     private final BlogPostFetcher postFetcher;
     private final AiRouteVerifyClient aiRouteVerifyClient;
+    private final java.time.Clock clock;
 
     public RouteVerificationService(
             ContentRepository contentRepository,
             ContentService contentService,
             NaverBlogClient naverBlogClient,
             BlogPostFetcher postFetcher,
-            AiRouteVerifyClient aiRouteVerifyClient
+            AiRouteVerifyClient aiRouteVerifyClient,
+            java.time.Clock clock
     ) {
         this.contentRepository = contentRepository;
         this.contentService = contentService;
         this.naverBlogClient = naverBlogClient;
         this.postFetcher = postFetcher;
         this.aiRouteVerifyClient = aiRouteVerifyClient;
+        this.clock = clock;
     }
 
     private static final int SEARCH_COUNT = 50;
@@ -38,11 +41,32 @@ public class RouteVerificationService {
     /** 검색 recall 확대용 멀티 쿼리 — 결과는 링크 기준으로 합쳐 중복 제거한다. */
     private static final java.util.List<String> QUERY_SUFFIXES = java.util.List.of(" 성지순례", " 성지 후기");
 
-    /** 작품별 검증 결과 캐시 — 외부 API·LLM 비용 절약. 빈 결과(usedPostCount=0)는 캐시하지 않아 재시도 가능. */
-    private final java.util.Map<Long, RouteVerificationResponse> cache = new java.util.concurrent.ConcurrentHashMap<>();
+    /**
+     * 작품별 검증 결과 캐시 — 외부 API·LLM 비용 절약. 빈 결과(usedPostCount=0)는 캐시하지 않는다.
+     * TTL: 코스가 있으면 6시간, 후기는 있으나 코스가 없으면(빈약 표본) 30분 뒤 재수집 — 영구 고정 방지.
+     */
+    private static final java.time.Duration RICH_TTL = java.time.Duration.ofHours(6);
+    private static final java.time.Duration THIN_TTL = java.time.Duration.ofMinutes(30);
+
+    private record CacheEntry(RouteVerificationResponse response, java.time.Instant expiresAt) {
+    }
+
+    private final java.util.Map<Long, CacheEntry> cache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private RouteVerificationResponse cachedResponse(Long contentId) {
+        CacheEntry entry = cache.get(contentId);
+        if (entry == null) {
+            return null;
+        }
+        if (java.time.Instant.now(clock).isAfter(entry.expiresAt())) {
+            cache.remove(contentId);
+            return null;
+        }
+        return entry.response();
+    }
 
     public RouteVerificationResponse verify(Long contentId) {
-        RouteVerificationResponse cached = cache.get(contentId);
+        RouteVerificationResponse cached = cachedResponse(contentId);
         if (cached != null) {
             return cached;
         }
@@ -108,7 +132,8 @@ public class RouteVerificationService {
                                                     .toList()))
                             .toList());
             if (response.usedPostCount() > 0) {
-                cache.put(contentId, response);
+                java.time.Duration ttl = response.courses().isEmpty() ? THIN_TTL : RICH_TTL;
+                cache.put(contentId, new CacheEntry(response, java.time.Instant.now(clock).plus(ttl)));
             }
             return response;
         } catch (RuntimeException e) {
@@ -122,7 +147,7 @@ public class RouteVerificationService {
      * 캐시가 없으면 빈 목록: 검증은 느린 파이프라인이라 여기서 발화시키지 않는다.
      */
     public java.util.List<java.util.List<Long>> cachedCourseSpotIds(Long contentId) {
-        RouteVerificationResponse cached = cache.get(contentId);
+        RouteVerificationResponse cached = cachedResponse(contentId);
         if (cached == null || cached.courses() == null) {
             return java.util.List.of();
         }
