@@ -26,6 +26,7 @@ import com.sungjiduk.backend.trip.infra.AiTripClient;
 import com.sungjiduk.backend.trip.infra.dto.AiTripLayout;
 import com.sungjiduk.backend.trip.infra.dto.AiTripRequest;
 import com.sungjiduk.backend.trip.repository.TripPlanRepository;
+import com.sungjiduk.backend.spot.infra.ReverseGeocoder;
 import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.user.repository.UserRepository;
 import org.slf4j.Logger;
@@ -56,6 +57,11 @@ public class TripService {
     private final com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService;
     private final AiRequestLogRepository aiRequestLogRepository;
     private final UserRepository userRepository;
+    private final ReverseGeocoder reverseGeocoder;
+
+    /** 출발지 문자열 → 좌표 캐시 (같은 출발지 반복 지오코딩 방지). 실패는 캐시하지 않아 일시 장애 후 재시도된다. */
+    private final java.util.Map<String, java.util.Optional<ReverseGeocoder.LatLng>> startLocationCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     public TripService(
             TripPlanRepository tripPlanRepository,
@@ -66,7 +72,8 @@ public class TripService {
             com.sungjiduk.backend.content.service.ContentService contentService,
             com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService,
             AiRequestLogRepository aiRequestLogRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            ReverseGeocoder reverseGeocoder
     ) {
         this.tripPlanRepository = tripPlanRepository;
         this.spotRepository = spotRepository;
@@ -77,6 +84,23 @@ public class TripService {
         this.routeVerificationService = routeVerificationService;
         this.aiRequestLogRepository = aiRequestLogRepository;
         this.userRepository = userRepository;
+        this.reverseGeocoder = reverseGeocoder;
+    }
+
+    /** 출발지 앵커 좌표 — 빈 문자열이면 지오코딩 없이 empty. */
+    private java.util.Optional<ReverseGeocoder.LatLng> resolveStart(String startLocation) {
+        if (startLocation == null || startLocation.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        java.util.Optional<ReverseGeocoder.LatLng> cached = startLocationCache.get(startLocation);
+        if (cached != null) {
+            return cached;
+        }
+        java.util.Optional<ReverseGeocoder.LatLng> resolved = reverseGeocoder.forward(startLocation);
+        if (resolved.isPresent()) {
+            startLocationCache.put(startLocation, resolved);
+        }
+        return resolved;
     }
 
     /** userId가 있으면 User 프록시 참조 (조회 쿼리 없이 FK만) */
@@ -199,6 +223,7 @@ public class TripService {
                 .map(content -> content.getTitle())
                 .orElse(null);
 
+        java.util.Optional<ReverseGeocoder.LatLng> start = resolveStart(request.startLocation());
         List<AiTripRequest.CandidateSpot> candidates = new ArrayList<>();
         spotsById.forEach((id, spot) -> {
             if (spot != null) {
@@ -225,7 +250,9 @@ public class TripService {
                 new ArrayList<>(spotsById.keySet()),
                 request.excludedSpotIds() == null ? List.of() : request.excludedSpotIds(),
                 request.instruction(),
-                routeVerificationService.cachedCourseSpotIds(request.contentId()));
+                routeVerificationService.cachedCourseSpotIds(request.contentId()),
+                start.map(ReverseGeocoder.LatLng::lat).orElse(null),
+                start.map(ReverseGeocoder.LatLng::lng).orElse(null));
     }
 
     private void applyAiLayout(TripPlan plan, AiTripLayout layout) {

@@ -569,20 +569,23 @@ class TripServiceTest {
         @Test
         @DisplayName("startLocation을 지오코딩해 AI 요청에 좌표로 전달하고, 같은 문자열은 캐시한다")
         void forwardsGeocodedStartToAiRequest() {
-            // given
-            org.mockito.BDDMockito.given(reverseGeocoder.forward("Tokyo Station"))
+            // given — 싱글턴 캐시 오염 방지를 위해 이 스펙 전용 출발지 사용
+            org.mockito.BDDMockito.given(reverseGeocoder.forward("Ueno Station"))
                     .willReturn(java.util.Optional.of(new ReverseGeocoder.LatLng(35.6812, 139.7671)));
+            TripGenerateRequest request = new TripGenerateRequest(
+                    content.getId(), 1, "NORMAL", "Ueno Station", "PILGRIMAGE_ONLY",
+                    List.of(10L), List.of(), null, null, null);
 
             // when — 두 번 생성해도 지오코딩은 1회
-            tripService.generate(null, defaultRequest());
-            tripService.generate(null, defaultRequest());
+            tripService.generate(null, request);
+            tripService.generate(null, request);
 
             // then
             var captor = org.mockito.ArgumentCaptor.forClass(AiTripRequest.class);
             org.mockito.BDDMockito.then(aiTripClient).should(org.mockito.Mockito.times(2)).generate(captor.capture());
             assertThat(captor.getValue().startLat()).isEqualTo(35.6812);
             assertThat(captor.getValue().startLng()).isEqualTo(139.7671);
-            org.mockito.BDDMockito.then(reverseGeocoder).should(org.mockito.Mockito.times(1)).forward("Tokyo Station");
+            org.mockito.BDDMockito.then(reverseGeocoder).should(org.mockito.Mockito.times(1)).forward("Ueno Station");
         }
 
         @Test

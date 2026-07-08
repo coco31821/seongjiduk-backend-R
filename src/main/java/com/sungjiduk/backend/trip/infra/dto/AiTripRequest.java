@@ -12,7 +12,9 @@ public record AiTripRequest(
         List<Long> selectedSpotIds,
         List<Long> excludedSpotIds,
         String instruction,
-        List<List<Long>> verifiedCourses  // 블로그 합의 코스(랭킹 순) — ai가 일정 백본으로 사용
+        List<List<Long>> verifiedCourses,  // 블로그 합의 코스(랭킹 순) — ai가 일정 백본으로 사용
+        Double startLat,                   // 출발지 좌표(정지오코딩) — ai 체인 시작 앵커, 실패 시 null
+        Double startLng
 ) {
 
     public record Content(Long id, String title) {
