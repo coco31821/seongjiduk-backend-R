@@ -36,6 +36,9 @@ public enum ErrorCode {
     // Visit쪽
     VISIT_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 방문 기록을 찾을 수 없습니다."),
 
+    // Mission쪽
+    MISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 미션을 찾을 수 없습니다."),
+
     ;
     private final HttpStatus status;
     private final String description;
