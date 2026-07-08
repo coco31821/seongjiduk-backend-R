@@ -176,6 +176,27 @@ class MissionServiceTest {
         }
 
         @Test
+        @DisplayName("비활성 미션 완료 시 MISSION_INACTIVE")
+        void throwsWhenMissionInactive() {
+            // given
+            User user = userRepository.save(User.builder()
+                    .email("quest3@test.com").passwordHash("encoded").nickname("퀘스터3").build());
+            Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
+            PilgrimageSpot spot = spotRepository.save(PilgrimageSpot.create(
+                    content, "神田明神", "東京都", new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
+                    "千代田区", 40, null));
+            SpotMission mission = spotMissionRepository.save(SpotMission.create(
+                    spot, "에마 찾기", "설명", MissionType.FIND, MissionOrigin.AI));
+            mission.update("에마 찾기", "설명", MissionType.FIND, false); // 관리자가 숨김(비활성)
+
+            // when / then
+            assertThatThrownBy(() -> missionService.complete(user.getId(), mission.getId()))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.MISSION_INACTIVE);
+        }
+
+        @Test
         @DisplayName("없는 미션이면 MISSION_NOT_FOUND")
         void throwsWhenMissionMissing() {
             // given

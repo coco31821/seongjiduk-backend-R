@@ -59,6 +59,9 @@ public class MissionService {
     public VisitResponse complete(Long userId, Long missionId) {
         SpotMission mission = missionRepository.findById(missionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MISSION_NOT_FOUND));
+        if (!mission.isActive()) {
+            throw new BusinessException(ErrorCode.MISSION_INACTIVE);
+        }
         return visitService.create(userId, new VisitCreateRequest(
                 mission.getSpot().getId(), "미션 완료: " + mission.getTitle(), null));
     }
