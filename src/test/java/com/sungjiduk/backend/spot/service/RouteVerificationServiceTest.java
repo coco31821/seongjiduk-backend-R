@@ -69,6 +69,11 @@ class RouteVerificationServiceTest {
         given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
     }
 
+    @org.junit.jupiter.api.BeforeEach
+    void defaultClock() {
+        nowAt(Instant.parse("2026-07-08T09:00:00Z"));
+    }
+
     private Content savedContentWithSpot() {
         Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
         spotRepository.save(PilgrimageSpot.create(
