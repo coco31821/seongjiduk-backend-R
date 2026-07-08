@@ -5,6 +5,7 @@ import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.content.repository.ContentRepository;
 import com.sungjiduk.backend.mission.constants.MissionOrigin;
 import com.sungjiduk.backend.mission.constants.MissionType;
+import com.sungjiduk.backend.mission.dto.response.MissionResponse;
 import com.sungjiduk.backend.mission.entity.SpotMission;
 import com.sungjiduk.backend.mission.repository.SpotMissionRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
@@ -102,6 +103,35 @@ class MissionServiceTest {
             } finally {
                 cleanup(spot.getId(), content.getId());
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("findByContent는")
+    class FindByContent {
+
+        @Test
+        @DisplayName("작품의 활성 미션을 스팟 id 오름차순으로 일괄 반환한다 (비활성 제외)")
+        void returnsActiveMissionsGroupedBySpot() {
+            // given
+            Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
+            PilgrimageSpot spot = spotRepository.save(PilgrimageSpot.create(
+                    content, "神田明神", "東京都", new BigDecimal("35.7020000"), new BigDecimal("139.7680000"),
+                    "千代田区", 40, null));
+            SpotMission active = spotMissionRepository.save(SpotMission.create(
+                    spot, "에마 찾기", "설명", MissionType.FIND, MissionOrigin.AI));
+            SpotMission inactive = spotMissionRepository.save(SpotMission.create(
+                    spot, "숨김", "설명", MissionType.PHOTO, MissionOrigin.AI));
+            inactive.update("숨김", "설명", MissionType.PHOTO, false);
+
+            // when
+            List<MissionResponse> missions = missionService.findByContent(content.getId());
+
+            // then
+            assertThat(missions).hasSize(1);
+            assertThat(missions.get(0).id()).isEqualTo(active.getId());
+            assertThat(missions.get(0).spotId()).isEqualTo(spot.getId());
+            assertThat(missions.get(0).missionType()).isEqualTo("FIND");
         }
     }
 
