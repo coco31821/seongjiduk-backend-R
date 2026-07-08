@@ -64,7 +64,8 @@ public class ContentService {
                         content.getTitle(),
                         content.getCategory(),
                         content.getCountry(),
-                        spotRepository.countByContentId(content.getId())))
+                        spotRepository.countByContentId(content.getId()),
+                        null))
                 .toList();
     }
 

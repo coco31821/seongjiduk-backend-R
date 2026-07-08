@@ -4,7 +4,7 @@ public record ContentListResponse(
         Long id,
         String title,
         String category,
-        String country
-,
-        long spotCount) {
+        String country,
+        long spotCount,
+        String thumbnailUrl) {
 }
