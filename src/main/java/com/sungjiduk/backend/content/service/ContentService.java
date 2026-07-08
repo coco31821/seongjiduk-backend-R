@@ -14,6 +14,8 @@ import com.sungjiduk.backend.spot.infra.dto.AiDescribeResult.AiSpotDescription;
 import com.sungjiduk.backend.spot.entity.SpotReference;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import com.sungjiduk.backend.spot.repository.SpotReferenceRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @Transactional(readOnly = true)
 public class ContentService {
+
+    private static final Logger log = LoggerFactory.getLogger(ContentService.class);
 
     private static final String SCENE_IMAGE_SOURCE = "Anitabi:scene-image";
 
@@ -209,7 +213,8 @@ public class ContentService {
                         missionService.saveDrafts(description.spotId(), description.missions());
                     });
         } catch (RuntimeException e) {
-            // ai-service 미가용 → 설명 없이 목록 반환 (다음 조회에서 재시도)
+            // ai-service 미가용 → 설명 없이 목록 반환 (다음 조회에서 재시도). 삼키되 관측을 위해 로그는 남긴다.
+            log.warn("describe/미션 저장 실패 — content={}: {}", content.getId(), e.toString());
         }
     }
 }
