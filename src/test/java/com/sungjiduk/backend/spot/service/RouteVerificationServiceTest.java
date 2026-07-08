@@ -16,6 +16,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -57,6 +60,14 @@ class RouteVerificationServiceTest {
 
     @MockitoBean
     private AiRouteVerifyClient aiRouteVerifyClient;
+
+    @MockitoBean
+    private Clock clock;
+
+    private void nowAt(Instant instant) {
+        given(clock.instant()).willReturn(instant);
+        given(clock.getZone()).willReturn(ZoneId.of("Asia/Seoul"));
+    }
 
     private Content savedContentWithSpot() {
         Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
@@ -254,6 +265,53 @@ class RouteVerificationServiceTest {
             assertThat(tips.spotId()).isEqualTo(1L);
             assertThat(tips.tips().get(0).tip()).isEqualTo("한정 에마는 오전에 소진된다");
             assertThat(tips.tips().get(0).source().title()).isEqualTo("팁후기");
+        }
+
+        @Test
+        @DisplayName("코스가 없는 빈약 결과는 30분 뒤 재수집된다 — 영구 고정 방지")
+        void thinResultExpiresInThirtyMinutes() {
+            // given — 후기는 있으나 코스 0 (빈약 표본)
+            Content content = savedContentWithSpot();
+            nowAt(Instant.parse("2026-07-08T10:00:00Z"));
+            given(naverBlogClient.enabled()).willReturn(true);
+            given(naverBlogClient.search(anyString(), anyInt())).willReturn(List.of(
+                    new NaverBlogClient.BlogItem("후기", "https://blog.naver.com/a/1", "20260701")));
+            given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
+            given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
+                    "openai", 1, 1, List.of(), List.of(), List.of()));
+            routeVerificationService.verify(content.getId());
+
+            // when — 31분 뒤 재조회
+            nowAt(Instant.parse("2026-07-08T10:31:00Z"));
+            routeVerificationService.verify(content.getId());
+
+            // then — 만료돼 재수집
+            then(aiRouteVerifyClient).should(times(2)).verify(any());
+        }
+
+        @Test
+        @DisplayName("코스가 있는 결과는 6시간 안에는 캐시를 쓰고, 지나면 재수집한다")
+        void richResultExpiresInSixHours() {
+            // given
+            Content content = savedContentWithSpot();
+            nowAt(Instant.parse("2026-07-08T10:00:00Z"));
+            given(naverBlogClient.enabled()).willReturn(true);
+            given(naverBlogClient.search(anyString(), anyInt())).willReturn(List.of(
+                    new NaverBlogClient.BlogItem("후기", "https://blog.naver.com/a/1", "20260701")));
+            given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
+            given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
+                    "openai", 1, 1, List.of(), List.of(),
+                    List.of(new VerifyResult.VerifiedCourse(1, List.of(5L, 6L), 2, List.of(0)))));
+            routeVerificationService.verify(content.getId());
+
+            // when / then — 5시간 뒤엔 캐시, 7시간 뒤엔 재수집
+            nowAt(Instant.parse("2026-07-08T15:00:00Z"));
+            routeVerificationService.verify(content.getId());
+            then(aiRouteVerifyClient).should(times(1)).verify(any());
+
+            nowAt(Instant.parse("2026-07-08T17:01:00Z"));
+            routeVerificationService.verify(content.getId());
+            then(aiRouteVerifyClient).should(times(2)).verify(any());
         }
 
         @Test
