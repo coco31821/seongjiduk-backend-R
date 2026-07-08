@@ -4,6 +4,7 @@ import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.mission.constants.MissionOrigin;
 import com.sungjiduk.backend.mission.constants.MissionType;
+import com.sungjiduk.backend.mission.dto.response.MissionResponse;
 import com.sungjiduk.backend.mission.entity.SpotMission;
 import com.sungjiduk.backend.mission.repository.SpotMissionRepository;
 import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
@@ -36,6 +37,14 @@ public class MissionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.SPOT_NOT_FOUND));
         drafts.stream().limit(3).forEach(draft -> missionRepository.save(SpotMission.create(
                 spot, draft.title(), draft.description(), parseType(draft.missionType()), MissionOrigin.AI)));
+    }
+
+    @Transactional(readOnly = true)
+    public List<MissionResponse> findByContent(Long contentId) {
+        return missionRepository.findBySpot_Content_IdAndActiveTrueOrderBySpotIdAscIdAsc(contentId).stream()
+                .map(m -> new MissionResponse(m.getId(), m.getSpot().getId(), m.getTitle(),
+                        m.getDescription(), m.getMissionType().name()))
+                .toList();
     }
 
     private MissionType parseType(String raw) {
