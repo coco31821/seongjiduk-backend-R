@@ -278,7 +278,7 @@ class RouteVerificationServiceTest {
                     new NaverBlogClient.BlogItem("후기", "https://blog.naver.com/a/1", "20260701")));
             given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
-                    "openai", 1, 1, List.of(), List.of(), List.of()));
+                    "openai", 1, 1, List.of(), List.of(), List.of(), List.of()));
             routeVerificationService.verify(content.getId());
 
             // when — 31분 뒤 재조회
@@ -301,7 +301,7 @@ class RouteVerificationServiceTest {
             given(postFetcher.fetchText(anyString())).willReturn(Optional.of("본문 ".repeat(100)));
             given(aiRouteVerifyClient.verify(any())).willReturn(new VerifyResult(
                     "openai", 1, 1, List.of(), List.of(),
-                    List.of(new VerifyResult.VerifiedCourse(1, List.of(5L, 6L), 2, List.of(0)))));
+                    List.of(new VerifyResult.VerifiedCourse(1, List.of(5L, 6L), 2, List.of(0))), List.of()));
             routeVerificationService.verify(content.getId());
 
             // when / then — 5시간 뒤엔 캐시, 7시간 뒤엔 재수집
