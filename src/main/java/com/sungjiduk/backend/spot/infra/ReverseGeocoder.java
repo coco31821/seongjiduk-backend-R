@@ -10,6 +10,12 @@ public interface ReverseGeocoder {
 
     Optional<GeoResult> reverse(double lat, double lng);
 
+    /** 주소/장소명 → 좌표 정지오코딩 — 출발지 앵커용. 실패·키 없음이면 empty. */
+    Optional<LatLng> forward(String address);
+
     record GeoResult(String address, String city) {
+    }
+
+    record LatLng(double lat, double lng) {
     }
 }

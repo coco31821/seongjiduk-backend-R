@@ -10,6 +10,7 @@ import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.infra.AiDescribeClient;
 import com.sungjiduk.backend.spot.infra.dto.AiDescribeResult;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
+import com.sungjiduk.backend.spot.infra.ReverseGeocoder;
 import com.sungjiduk.backend.spot.service.RouteVerificationService;
 import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.user.repository.UserRepository;
@@ -43,6 +44,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.BDDMockito.willThrow;
 
@@ -82,6 +84,9 @@ class TripServiceTest {
 
     @MockitoBean
     private RouteVerificationService routeVerificationService;
+
+    @MockitoBean
+    private ReverseGeocoder reverseGeocoder;
 
     // TripPlan.content가 FK 필수라 테스트마다 실제 작품 행을 만들어 쓴다.
     private Content content;
@@ -554,6 +559,49 @@ class TripServiceTest {
             var logs = aiRequestLogRepository.findAll();
             assertThat(logs).hasSize(1);
             assertThat(logs.get(0).getTripPlanId()).isEqualTo(created.tripId());
+        }
+    }
+
+    @Nested
+    @DisplayName("출발지 앵커는")
+    class StartAnchor {
+
+        @Test
+        @DisplayName("startLocation을 지오코딩해 AI 요청에 좌표로 전달하고, 같은 문자열은 캐시한다")
+        void forwardsGeocodedStartToAiRequest() {
+            // given — 싱글턴 캐시 오염 방지를 위해 이 스펙 전용 출발지 사용
+            org.mockito.BDDMockito.given(reverseGeocoder.forward("Ueno Station"))
+                    .willReturn(java.util.Optional.of(new ReverseGeocoder.LatLng(35.6812, 139.7671)));
+            TripGenerateRequest request = new TripGenerateRequest(
+                    content.getId(), 1, "NORMAL", "Ueno Station", "PILGRIMAGE_ONLY",
+                    List.of(10L), List.of(), null, null, null);
+
+            // when — 두 번 생성해도 지오코딩은 1회
+            tripService.generate(null, request);
+            tripService.generate(null, request);
+
+            // then
+            var captor = org.mockito.ArgumentCaptor.forClass(AiTripRequest.class);
+            org.mockito.BDDMockito.then(aiTripClient).should(org.mockito.Mockito.times(2)).generate(captor.capture());
+            assertThat(captor.getValue().startLat()).isEqualTo(35.6812);
+            assertThat(captor.getValue().startLng()).isEqualTo(139.7671);
+            org.mockito.BDDMockito.then(reverseGeocoder).should(org.mockito.Mockito.times(1)).forward("Ueno Station");
+        }
+
+        @Test
+        @DisplayName("지오코딩 실패·빈 출발지는 좌표 없이 보낸다 (기존 동작)")
+        void sendsNullWhenGeocodeFails() {
+            // given
+            org.mockito.BDDMockito.given(reverseGeocoder.forward(anyString()))
+                    .willReturn(java.util.Optional.empty());
+
+            // when
+            tripService.generate(null, defaultRequest());
+
+            // then
+            var captor = org.mockito.ArgumentCaptor.forClass(AiTripRequest.class);
+            org.mockito.BDDMockito.then(aiTripClient).should().generate(captor.capture());
+            assertThat(captor.getValue().startLat()).isNull();
         }
     }
 
