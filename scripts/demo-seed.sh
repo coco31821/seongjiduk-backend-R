@@ -71,5 +71,11 @@ echo "[3.5/4] 해리포터 (영국, MOVIE) — Wikidata 촬영지 큐레이션 �
 docker exec -i "$MYSQL_CONTAINER" mysql --default-character-set=utf8mb4 \
   -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < "$(dirname "$0")/seed/harry-potter.sql"
 
+echo "[3.6/4] 반지의 제왕 (뉴질랜드, MOVIE) + 셜록 홈즈 (영국, NOVEL) — 장르 확장 시드 (멱등)"
+docker exec -i "$MYSQL_CONTAINER" mysql --default-character-set=utf8mb4 \
+  -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < "$(dirname "$0")/seed/lord-of-the-rings.sql"
+docker exec -i "$MYSQL_CONTAINER" mysql --default-character-set=utf8mb4 \
+  -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" < "$(dirname "$0")/seed/sherlock-holmes.sql"
+
 echo "[4/4] 완료 — 3기수 시드. 임포트가 AI 설명 프리웜을 자동 트리거함(수 분 뒤 첫 조회도 즉시)."
 echo "확인: $BASE_URL/api/contents"
