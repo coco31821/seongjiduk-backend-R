@@ -20,7 +20,12 @@ public record AiDescribeResult(
             String sceneDescription,
             String specialPoint,
             String koreanName,          // 한국어 표기 이름 (없으면 원어)
-            Integer recommendedMinutes  // AI 추정 체류시간(분)
+            Integer recommendedMinutes, // AI 추정 체류시간(분)
+            List<AiMissionDraft> missions
     ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record AiMissionDraft(String title, String description, String missionType) {
     }
 }
