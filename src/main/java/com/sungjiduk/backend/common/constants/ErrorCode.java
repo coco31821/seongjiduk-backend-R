@@ -36,6 +36,14 @@ public enum ErrorCode {
     // Visit쪽
     VISIT_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 방문 기록을 찾을 수 없습니다."),
 
+    // Payment쪽
+    TRAVEL_OFFER_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 여행 상품을 찾을 수 없습니다."),
+    PAYMENT_ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 결제 주문을 찾을 수 없습니다."),
+    TRIP_NOT_READY_FOR_PAYMENT(HttpStatus.BAD_REQUEST, "결제할 수 있는 상태의 일정이 아닙니다."),
+    PAYMENT_ORDER_INVALID_STATUS(HttpStatus.BAD_REQUEST, "결제 주문 상태가 올바르지 않습니다."),
+    PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "결제 금액이 주문 금액과 일치하지 않습니다."),
+    PAYMENT_CONFIRM_FAILED(HttpStatus.BAD_GATEWAY, "결제 승인에 실패했습니다."),
+
     // Mission쪽
     MISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 미션을 찾을 수 없습니다."),
     MISSION_INACTIVE(HttpStatus.BAD_REQUEST, "비활성화된 미션은 완료할 수 없습니다."),
