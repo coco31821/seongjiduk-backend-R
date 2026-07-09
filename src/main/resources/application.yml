@@ -52,6 +52,9 @@ seongjiduk:
   tosspayments:
     client-key: ${TOSS_CLIENT_KEY:}
     secret-key: ${TOSS_SECRET_KEY:}
+  travelpayouts:
+    # 어필리에이트 파트너 ID(공개값, 비밀 아님). 예약 딥링크에 붙어 수수료 트래킹. 비면 구글 폴백.
+    marker: ${TRAVELPAYOUTS_MARKER:748641}
 
 custom:
   jwt:
