@@ -60,6 +60,7 @@ seongjiduk:
     mode: ${REDIS_GUARD_MODE:redis}
     ai-max-concurrent: ${AI_MAX_CONCURRENT:4}   # ai-service 동시 호출 상한
     ai-wait-ms: ${AI_WAIT_MS:3000}              # 자리 대기 상한(초과 시 로컬 폴백)
+    external-rpm: ${EXTERNAL_RPM:600}           # 네이버·구글 키별 분당 호출 상한
 
 custom:
   jwt:

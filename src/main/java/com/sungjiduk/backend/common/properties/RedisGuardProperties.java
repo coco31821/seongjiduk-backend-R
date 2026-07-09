@@ -18,14 +18,18 @@ public class RedisGuardProperties {
     private final int aiMaxConcurrent;
     /** 자리가 없을 때 큐에서 최대 대기(ms). 초과하면 로컬 폴백. */
     private final long aiWaitMs;
+    /** 외부 API(네이버·구글) 키별 분당 호출 상한(공유 키 429·과금 방어). */
+    private final int externalRpm;
 
     public RedisGuardProperties(
             @DefaultValue("redis") String mode,
             @DefaultValue("4") int aiMaxConcurrent,
-            @DefaultValue("3000") long aiWaitMs
+            @DefaultValue("3000") long aiWaitMs,
+            @DefaultValue("600") int externalRpm
     ) {
         this.mode = mode;
         this.aiMaxConcurrent = aiMaxConcurrent;
         this.aiWaitMs = aiWaitMs;
+        this.externalRpm = externalRpm;
     }
 }
