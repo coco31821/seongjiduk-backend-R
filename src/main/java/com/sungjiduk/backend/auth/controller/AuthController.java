@@ -2,7 +2,7 @@ package com.sungjiduk.backend.auth.controller;
 
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
-import com.sungjiduk.backend.auth.dto.request.TokenResponse;
+import com.sungjiduk.backend.auth.dto.response.TokenResponse;
 import com.sungjiduk.backend.auth.dto.response.LoginResponse;
 import com.sungjiduk.backend.auth.dto.response.MeResponse;
 import com.sungjiduk.backend.auth.dto.response.UserSummaryResponse;

@@ -1,7 +1,7 @@
 package com.sungjiduk.backend.auth.service;
 
 import com.sungjiduk.backend.auth.dto.response.MeResponse;
-import com.sungjiduk.backend.auth.dto.request.TokenResponse;
+import com.sungjiduk.backend.auth.dto.response.TokenResponse;
 import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
