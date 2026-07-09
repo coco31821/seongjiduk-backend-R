@@ -66,8 +66,8 @@ public class SupplierBooking extends BaseEntity {
     @Column(name = "fail_reason", length = 1000)
     private String failReason;
 
-    @Lob
-    @Column(name = "raw_payload")
+    // Toss 응답 원문(수 KB) 저장 — @Lob은 MySQL에서 TINYTEXT(255)로 매핑돼 넘침. TEXT 명시(마이그레이션 V9와 일치).
+    @Column(name = "raw_payload", columnDefinition = "TEXT")
     private String rawPayload;
 
     @Builder
