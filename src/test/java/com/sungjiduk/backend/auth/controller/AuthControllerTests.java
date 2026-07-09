@@ -3,7 +3,10 @@ package com.sungjiduk.backend.auth.controller;
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
 import com.sungjiduk.backend.common.constants.ErrorCode;
+import com.sungjiduk.backend.common.dto.KeyPair;
+import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.common.properties.JwtProperties;
+import com.sungjiduk.backend.common.security.domain.RefreshToken;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.common.security.service.TokenProvider;
 import com.sungjiduk.backend.user.entity.User;
@@ -26,11 +29,16 @@ import tools.jackson.databind.ObjectMapper;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -305,6 +313,100 @@ class AuthControllerTests {
     }
 
     @Nested
+    @DisplayName("토큰 재발급")
+    class Refresh {
+
+        @Test
+        @DisplayName("유효한 RefreshToken 쿠키이면 새 토큰 응답과 쿠키를 반환한다")
+        void 토큰재발급성공() throws Exception {
+            // given
+            User savedUser = userEmailRepository.userSave(User.builder()
+                .email("auth-controller-refresh-success@gmail.com")
+                .passwordHash(passwordEncoder.encode("tjdwlejr1234"))
+                .nickname("잠이많이온유저")
+                .build());
+            KeyPair keyPair = tokenProvider.issueKeyPair(savedUser.getEmail(), savedUser.getRole());
+            String oldRefreshToken = keyPair.refreshToken();
+            clearInvocations(refreshTokenRepository);
+
+            when(refreshTokenRepository.findByRefreshTokenOrThrow(oldRefreshToken))
+                .thenReturn(storedRefreshToken(oldRefreshToken, savedUser.getEmail()));
+
+            // when
+            mockMvc.perform(
+                    MockMvcRequestBuilders
+                        .post(BASE_URL + "/refresh")
+                        .cookie(new Cookie("refreshToken", oldRefreshToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token")
+                )
+                // then
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").value(not(oldRefreshToken)))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, allOf(
+                    containsString("refreshToken="),
+                    containsString("Path=/"),
+                    containsString("HttpOnly"),
+                    containsString("SameSite=Lax")
+                )));
+
+            verify(refreshTokenRepository).deleteById(oldRefreshToken);
+        }
+
+        @Test
+        @DisplayName("efreshToken 쿠키가 없으면 401 반환")
+        void 쿠키없음() throws Exception {
+            // when
+            mockMvc.perform(
+                    MockMvcRequestBuilders
+                        .post(BASE_URL + "/refresh")
+                )
+                // then
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(ErrorCode.TOKEN_NOT_FOUND.name()))
+                .andExpect(jsonPath("$.error.message").value(ErrorCode.TOKEN_NOT_FOUND.getDescription()));
+
+            verify(refreshTokenRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("Redis에 RefreshToken이 없으면 401 반환")
+        void Redis없음() throws Exception {
+            // given
+            User savedUser = userEmailRepository.userSave(User.builder()
+                .email("auth-controller-missing@gmail.com")
+                .passwordHash(passwordEncoder.encode("tjdwlejr1234"))
+                .nickname("재발급유저")
+                .build());
+            String refreshToken = tokenProvider.issueKeyPair(
+                savedUser.getEmail(),
+                savedUser.getRole()
+            ).refreshToken();
+            clearInvocations(refreshTokenRepository);
+
+            when(refreshTokenRepository.findByRefreshTokenOrThrow(refreshToken))
+                .thenThrow(new BusinessException(ErrorCode.REFRESH_TOKEN_EXPIRED));
+
+            // when
+            mockMvc.perform(
+                    MockMvcRequestBuilders
+                        .post(BASE_URL + "/refresh")
+                        .cookie(new Cookie("refreshToken", refreshToken))
+                )
+                // then
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(ErrorCode.REFRESH_TOKEN_EXPIRED.name()))
+                .andExpect(jsonPath("$.error.message").value(ErrorCode.REFRESH_TOKEN_EXPIRED.getDescription()));
+
+            verify(refreshTokenRepository, never()).deleteById(anyString());
+        }
+    }
+
+    @Nested
     @DisplayName("내정보조회")
     class Me {
 
@@ -350,5 +452,13 @@ class AuthControllerTests {
                 .andExpect(jsonPath("$.error.code").value(ErrorCode.ABNORMAL_TOKEN.name()))
                 .andExpect(jsonPath("$.error.message").value(ErrorCode.ABNORMAL_TOKEN.getDescription()));
         }
+    }
+
+    private RefreshToken storedRefreshToken(String refreshToken, String email) {
+        return new RefreshToken(
+            refreshToken,
+            email,
+            jwtProperties.getValidations().getRefresh() / 1000L
+        );
     }
 }
