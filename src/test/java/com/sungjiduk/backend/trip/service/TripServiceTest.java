@@ -16,6 +16,7 @@ import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.user.repository.UserRepository;
 import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.exception.BusinessException;
+import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.trip.infra.dto.AiTripRequest;
 import com.sungjiduk.backend.trip.dto.request.TripGenerateRequest;
 import com.sungjiduk.backend.trip.dto.response.TripResponse;
@@ -36,19 +37,27 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.data.redis.repositories.enabled=false")
 @Transactional
 @DisplayName("TripService")
 class TripServiceTest {
@@ -88,6 +97,14 @@ class TripServiceTest {
     @MockitoBean
     private ReverseGeocoder reverseGeocoder;
 
+    @MockitoBean
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @MockitoBean
+    private RefreshTokenRepository refreshTokenRepository;
+
+    private final Map<String, Object> redisStore = new ConcurrentHashMap<>();
+
     // TripPlan.content가 FK 필수라 테스트마다 실제 작품 행을 만들어 쓴다.
     private Content content;
 
@@ -96,8 +113,19 @@ class TripServiceTest {
     @MockitoBean
     private AiTripClient aiTripClient;
 
+    @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
+        redisStore.clear();
+        ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get(anyString()))
+                .willAnswer(invocation -> redisStore.get(invocation.getArgument(0)));
+        doAnswer(invocation -> {
+            redisStore.put(invocation.getArgument(0), invocation.getArgument(1));
+            return null;
+        }).when(valueOperations).set(anyString(), any(), any(Duration.class));
+
         willThrow(new RuntimeException("ai-service down")).given(aiTripClient).generate(any());
         willThrow(new RuntimeException("describe down")).given(aiDescribeClient).describe(any());
         content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "러브라이브! 설명"));

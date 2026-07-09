@@ -33,15 +33,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.Duration;
+import org.springframework.data.redis.core.RedisTemplate;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class TripService {
@@ -59,9 +54,11 @@ public class TripService {
     private final UserRepository userRepository;
     private final ReverseGeocoder reverseGeocoder;
 
-    /** 출발지 문자열 → 좌표 캐시 (같은 출발지 반복 지오코딩 방지). 실패는 캐시하지 않아 일시 장애 후 재시도된다. */
-    private final java.util.Map<String, java.util.Optional<ReverseGeocoder.LatLng>> startLocationCache =
-            new java.util.concurrent.ConcurrentHashMap<>();
+    private final RedisTemplate<String, Object> redisTemplate;
+
+//    /** 출발지 문자열 → 좌표 캐시 (같은 출발지 반복 지오코딩 방지). 실패는 캐시하지 않아 일시 장애 후 재시도된다. */
+//    private final java.util.Map<String, java.util.Optional<ReverseGeocoder.LatLng>> startLocationCache =
+//            new java.util.concurrent.ConcurrentHashMap<>();
 
     public TripService(
             TripPlanRepository tripPlanRepository,
@@ -73,7 +70,8 @@ public class TripService {
             com.sungjiduk.backend.spot.service.RouteVerificationService routeVerificationService,
             AiRequestLogRepository aiRequestLogRepository,
             UserRepository userRepository,
-            ReverseGeocoder reverseGeocoder
+            ReverseGeocoder reverseGeocoder,
+            RedisTemplate<String, Object> redisTemplate
     ) {
         this.tripPlanRepository = tripPlanRepository;
         this.spotRepository = spotRepository;
@@ -85,21 +83,39 @@ public class TripService {
         this.aiRequestLogRepository = aiRequestLogRepository;
         this.userRepository = userRepository;
         this.reverseGeocoder = reverseGeocoder;
+        this.redisTemplate = redisTemplate;
+    }
+
+    // Redis key helper
+    private static final Duration START_LOCATION_CACHE_TTL = Duration.ofDays(1);
+
+    private String startLocationKey(String startLocation) {
+        return "geocode:start-location:" + normalizeStartLocation(startLocation);
+    }
+
+    private String normalizeStartLocation(String startLocation) {
+        return startLocation.trim()
+            .replaceAll("\\s+", " ")
+            .toLowerCase(java.util.Locale.ROOT);
     }
 
     /** 출발지 앵커 좌표 — 빈 문자열이면 지오코딩 없이 empty. */
-    private java.util.Optional<ReverseGeocoder.LatLng> resolveStart(String startLocation) {
+    private Optional<ReverseGeocoder.LatLng> resolveStart(String startLocation) {
         if (startLocation == null || startLocation.isBlank()) {
-            return java.util.Optional.empty();
+            return Optional.empty();    // 실패 결과를 캐시하면 안됨.
         }
-        java.util.Optional<ReverseGeocoder.LatLng> cached = startLocationCache.get(startLocation);
-        if (cached != null) {
-            return cached;
+
+        String cacheKey = startLocationKey(startLocation);
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached instanceof ReverseGeocoder.LatLng latLng) {
+            return Optional.of(latLng);
         }
-        java.util.Optional<ReverseGeocoder.LatLng> resolved = reverseGeocoder.forward(startLocation);
-        if (resolved.isPresent()) {
-            startLocationCache.put(startLocation, resolved);
-        }
+
+        Optional<ReverseGeocoder.LatLng> resolved = reverseGeocoder.forward(startLocation);
+        resolved.ifPresent(latLng ->
+            redisTemplate.opsForValue().set(cacheKey, latLng, START_LOCATION_CACHE_TTL)
+        );
+
         return resolved;
     }
 
