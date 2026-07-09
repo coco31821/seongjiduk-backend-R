@@ -1,5 +1,8 @@
 package com.sungjiduk.backend.common.ratelimit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
@@ -30,9 +33,14 @@ public class RedisConcurrencyLimiter implements ConcurrencyLimiter {
             + "else return 0 end",
             Long.class);
 
+    private static final Logger log = LoggerFactory.getLogger(RedisConcurrencyLimiter.class);
+
     /** 크래시한 홀더의 자리를 회수하기까지의 최대 점유 시간(안전망). */
     private static final long STALE_TIMEOUT_MS = Duration.ofMinutes(2).toMillis();
     private static final long RETRY_INTERVAL_MS = 50;
+
+    /** fail-open 시 반환하는 무동작 permit(반납할 것 없음). */
+    private static final Permit NO_OP = () -> { };
 
     private final StringRedisTemplate redis;
 
@@ -48,21 +56,27 @@ public class RedisConcurrencyLimiter implements ConcurrencyLimiter {
         String zkey = "sem:" + key;
         String token = UUID.randomUUID().toString();
         long deadline = System.currentTimeMillis() + Math.max(0, wait.toMillis());
-        do {
-            if (tryAcquireOnce(zkey, maxConcurrent, token)) {
-                return Optional.of(new RedisPermit(zkey, token));
-            }
-            if (System.currentTimeMillis() >= deadline) {
-                break;
-            }
-            try {
-                Thread.sleep(RETRY_INTERVAL_MS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        } while (System.currentTimeMillis() < deadline);
-        return Optional.empty();
+        try {
+            do {
+                if (tryAcquireOnce(zkey, maxConcurrent, token)) {
+                    return Optional.of(new RedisPermit(zkey, token));
+                }
+                if (System.currentTimeMillis() >= deadline) {
+                    break;
+                }
+                try {
+                    Thread.sleep(RETRY_INTERVAL_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            } while (System.currentTimeMillis() < deadline);
+            return Optional.empty();
+        } catch (DataAccessException e) {
+            // fail-open: Redis 장애가 AI 호출을 막지 않도록 통과(동시성 보호는 일시 상실).
+            log.warn("ConcurrencyLimiter Redis 오류 — fail-open 통과: {}", e.getMessage());
+            return Optional.of(NO_OP);
+        }
     }
 
     private boolean tryAcquireOnce(String zkey, int max, String token) {

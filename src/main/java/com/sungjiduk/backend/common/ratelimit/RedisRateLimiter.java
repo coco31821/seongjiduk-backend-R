@@ -1,5 +1,8 @@
 package com.sungjiduk.backend.common.ratelimit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 
@@ -21,6 +24,8 @@ public class RedisRateLimiter implements RateLimiter {
             + "if c <= tonumber(ARGV[1]) then return 1 else return 0 end",
             Long.class);
 
+    private static final Logger log = LoggerFactory.getLogger(RedisRateLimiter.class);
+
     private final StringRedisTemplate redis;
 
     public RedisRateLimiter(StringRedisTemplate redis) {
@@ -36,8 +41,14 @@ public class RedisRateLimiter implements RateLimiter {
         long now = System.currentTimeMillis();
         long windowStart = now - (now % windowMs);
         String bucketKey = "rl:" + key + ":" + windowStart;
-        Long allowed = redis.execute(SCRIPT, List.of(bucketKey),
-                String.valueOf(limit), String.valueOf(windowMs));
-        return allowed != null && allowed == 1L;
+        try {
+            Long allowed = redis.execute(SCRIPT, List.of(bucketKey),
+                    String.valueOf(limit), String.valueOf(windowMs));
+            return allowed != null && allowed == 1L;
+        } catch (DataAccessException e) {
+            // fail-open: Redis 장애가 서비스 호출을 막지 않도록 통과시킨다(보호는 일시 상실).
+            log.warn("RateLimiter Redis 오류 — fail-open 통과: {}", e.getMessage());
+            return true;
+        }
     }
 }
