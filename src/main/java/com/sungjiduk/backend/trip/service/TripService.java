@@ -165,7 +165,9 @@ public class TripService {
      * 기존 Day는 비우고 다시 채우므로 generate/regenerate가 공유한다.
      */
     private AiRequestStatus layoutRoute(TripPlan plan, TripGenerateRequest request) {
-        Map<Long, PilgrimageSpot> spotsById = loadCandidateSpots(request);
+        Map<Long, PilgrimageSpot> spotsById = filterDominantCluster(
+                loadCandidateSpots(request),
+                resolveStart(request.startLocation()).orElse(null));
         List<NearbyAttraction> attractions = resolveAttractions(request);
         try {
             AiTripLayout layout = aiTripClient.generate(toAiRequest(plan, request, spotsById, attractions));
@@ -231,6 +233,107 @@ public class TripService {
             }
         }
         return ordered;
+    }
+
+    /** 한 여행으로 묶일 수 있는 스팟 간 링크 거리(km). 이보다 멀면 다른 지역 클러스터로 본다(대륙 간 혼합 차단). */
+    static final double CLUSTER_LINK_KM = 500.0;
+
+    /**
+     * 지리 실현성 가드 — 글로벌 작품(니지가사키 등)에서 대륙 단위로 흩어진 스팟을 함께 담으면
+     * 물리적으로 불가능한 일정이 나오므로, 링크 거리 기준 연결 클러스터 중 지배 클러스터만 남긴다.
+     * 선택 기준: 출발지가 있으면 출발지에서 가장 가까운 클러스터, 없으면 스팟이 가장 많은 클러스터
+     * (동수면 먼저 담은 쪽). 좌표 없는 스팟(미임포트 null 포함)은 판단 불가라 그대로 통과시킨다.
+     * 도쿄~오사카(400km)처럼 국내 이동 범위는 한 클러스터로 유지된다.
+     */
+    static Map<Long, PilgrimageSpot> filterDominantCluster(Map<Long, PilgrimageSpot> spotsById,
+                                                           ReverseGeocoder.LatLng start) {
+        List<Map.Entry<Long, PilgrimageSpot>> located = spotsById.entrySet().stream()
+                .filter(e -> e.getValue() != null
+                        && e.getValue().getLat() != null && e.getValue().getLng() != null)
+                .toList();
+        if (located.size() < 2) {
+            return spotsById;
+        }
+
+        // 단일 연결(single-linkage) 클러스터링 — BFS로 링크 거리 이내 스팟을 같은 클러스터로 묶는다
+        int n = located.size();
+        int[] cluster = new int[n];
+        Arrays.fill(cluster, -1);
+        int clusterCount = 0;
+        for (int i = 0; i < n; i++) {
+            if (cluster[i] != -1) {
+                continue;
+            }
+            cluster[i] = clusterCount;
+            Deque<Integer> queue = new ArrayDeque<>(List.of(i));
+            while (!queue.isEmpty()) {
+                int cur = queue.poll();
+                for (int j = 0; j < n; j++) {
+                    if (cluster[j] == -1 && distanceKm(located.get(cur).getValue(), located.get(j).getValue()) <= CLUSTER_LINK_KM) {
+                        cluster[j] = clusterCount;
+                        queue.add(j);
+                    }
+                }
+            }
+            clusterCount++;
+        }
+        if (clusterCount == 1) {
+            return spotsById;
+        }
+
+        // 지배 클러스터 선택 — 출발지 최근접 우선, 없으면 최다 스팟(동수면 먼저 담은 쪽 = 낮은 클러스터 번호)
+        int chosen = 0;
+        if (start != null) {
+            double best = Double.MAX_VALUE;
+            for (int i = 0; i < n; i++) {
+                double d = distanceKm(start.lat(), start.lng(),
+                        located.get(i).getValue().getLat().doubleValue(),
+                        located.get(i).getValue().getLng().doubleValue());
+                if (d < best) {
+                    best = d;
+                    chosen = cluster[i];
+                }
+            }
+        } else {
+            int[] sizes = new int[clusterCount];
+            for (int c : cluster) {
+                sizes[c]++;
+            }
+            for (int c = 1; c < clusterCount; c++) {
+                if (sizes[c] > sizes[chosen]) {
+                    chosen = c;
+                }
+            }
+        }
+
+        Set<Long> keptIds = new HashSet<>();
+        for (int i = 0; i < n; i++) {
+            if (cluster[i] == chosen) {
+                keptIds.add(located.get(i).getKey());
+            }
+        }
+        Map<Long, PilgrimageSpot> filtered = new LinkedHashMap<>();
+        spotsById.forEach((id, spot) -> {
+            boolean noCoords = spot == null || spot.getLat() == null || spot.getLng() == null;
+            if (noCoords || keptIds.contains(id)) {
+                filtered.put(id, spot);
+            }
+        });
+        log.info("지리 클러스터 가드 — {}개 클러스터 감지, 지배 클러스터 {}곳 유지 / {}곳 제외",
+                clusterCount, keptIds.size(), located.size() - keptIds.size());
+        return filtered;
+    }
+
+    private static double distanceKm(PilgrimageSpot a, PilgrimageSpot b) {
+        return distanceKm(a.getLat().doubleValue(), a.getLng().doubleValue(),
+                b.getLat().doubleValue(), b.getLng().doubleValue());
+    }
+
+    /** 위경도 근사 거리(km) — 판정용이라 haversine 대신 등장방형 근사로 충분 */
+    private static double distanceKm(double lat1, double lng1, double lat2, double lng2) {
+        double dLat = lat1 - lat2;
+        double dLng = (lng1 - lng2) * Math.cos(Math.toRadians((lat1 + lat2) / 2));
+        return 111.0 * Math.sqrt(dLat * dLat + dLng * dLng);
     }
 
     private AiTripRequest toAiRequest(TripPlan plan, TripGenerateRequest request, Map<Long, PilgrimageSpot> spotsById,
