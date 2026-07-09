@@ -52,6 +52,15 @@ seongjiduk:
   tosspayments:
     client-key: ${TOSS_CLIENT_KEY:}
     secret-key: ${TOSS_SECRET_KEY:}
+  travelpayouts:
+    # 어필리에이트 파트너 ID(공개값, 비밀 아님). 예약 딥링크에 붙어 수수료 트래킹. 비면 구글 폴백.
+    marker: ${TRAVELPAYOUTS_MARKER:748641}
+  redis-guard:
+    # 처리량 가드 구현 토글. redis(분산)=운영 기본, local(인메모리 단일), off(무제한=Redis 도입 전 대조군).
+    mode: ${REDIS_GUARD_MODE:redis}
+    ai-max-concurrent: ${AI_MAX_CONCURRENT:4}   # ai-service 동시 호출 상한
+    ai-wait-ms: ${AI_WAIT_MS:3000}              # 자리 대기 상한(초과 시 로컬 폴백)
+    external-rpm: ${EXTERNAL_RPM:600}           # 네이버·구글 키별 분당 호출 상한
 
 custom:
   jwt:

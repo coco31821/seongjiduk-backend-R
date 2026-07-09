@@ -60,9 +60,12 @@ for entry in "${CONTENTS[@]}"; do
 done
 
 # 알려진 원본 오태깅 제거: 무인편(49294)에 선샤인 소재 '海軍淡島桟橋'가 섞여 있음 (admin delete가 아직 mock이라 DB 직접)
+# ⚠️ 자식 FK(spot_references·spot_missions)를 먼저 지워야 pilgrimage_spots 삭제 가능 (describe 프리웜이 미션 생성 → FK 막힘)
 docker exec "$MYSQL_CONTAINER" mysql --default-character-set=utf8mb4 \
   -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e \
   "DELETE sr FROM spot_references sr JOIN pilgrimage_spots ps ON sr.spot_id=ps.id
+     WHERE ps.name='海軍淡島桟橋' AND ps.content_id=(SELECT id FROM contents WHERE title='러브라이브!' LIMIT 1);
+   DELETE sm FROM spot_missions sm JOIN pilgrimage_spots ps ON sm.spot_id=ps.id
      WHERE ps.name='海軍淡島桟橋' AND ps.content_id=(SELECT id FROM contents WHERE title='러브라이브!' LIMIT 1);
    DELETE FROM pilgrimage_spots
      WHERE name='海軍淡島桟橋' AND content_id=(SELECT id FROM contents WHERE title='러브라이브!' LIMIT 1);"

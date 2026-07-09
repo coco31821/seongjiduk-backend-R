@@ -23,4 +23,6 @@ public interface TripStopRepository extends JpaRepository<TripStop, Long> {
         @Param("end") LocalDateTime end,
         Pageable pageable
     );
+
+    long countByPilgrimageSpotIdAndCreatedAtBetween(Long pilgrimageSpotId, LocalDateTime start, LocalDateTime end);
 }
