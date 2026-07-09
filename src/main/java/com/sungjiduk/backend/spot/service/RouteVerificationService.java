@@ -9,6 +9,9 @@ import com.sungjiduk.backend.spot.infra.NaverBlogClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+// redis
+import org.springframework.data.redis.core.RedisTemplate;
+
 @Service
 @Transactional(readOnly = true)
 public class RouteVerificationService {
@@ -19,6 +22,7 @@ public class RouteVerificationService {
     private final BlogPostFetcher postFetcher;
     private final AiRouteVerifyClient aiRouteVerifyClient;
     private final java.time.Clock clock;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     public RouteVerificationService(
             ContentRepository contentRepository,
@@ -26,7 +30,8 @@ public class RouteVerificationService {
             NaverBlogClient naverBlogClient,
             BlogPostFetcher postFetcher,
             AiRouteVerifyClient aiRouteVerifyClient,
-            java.time.Clock clock
+            java.time.Clock clock,
+            RedisTemplate<String, Object> redisTemplate
     ) {
         this.contentRepository = contentRepository;
         this.contentService = contentService;
@@ -34,6 +39,7 @@ public class RouteVerificationService {
         this.postFetcher = postFetcher;
         this.aiRouteVerifyClient = aiRouteVerifyClient;
         this.clock = clock;
+        this.redisTemplate = redisTemplate;
     }
 
     private static final int SEARCH_COUNT = 50;
@@ -48,21 +54,25 @@ public class RouteVerificationService {
     private static final java.time.Duration RICH_TTL = java.time.Duration.ofHours(6);
     private static final java.time.Duration THIN_TTL = java.time.Duration.ofMinutes(30);
 
-    private record CacheEntry(RouteVerificationResponse response, java.time.Instant expiresAt) {
-    }
+    private String routeKey(Long contentId) {
+        return "route-verification:content:" + contentId;
+    }   // example. Redis key 값 : route-verification:content:10
 
-    private final java.util.Map<Long, CacheEntry> cache = new java.util.concurrent.ConcurrentHashMap<>();
+
 
     private RouteVerificationResponse cachedResponse(Long contentId) {
-        CacheEntry entry = cache.get(contentId);
-        if (entry == null) {
-            return null;
+        Object cached = redisTemplate.opsForValue().get(routeKey(contentId));   // java 객체를 그대로 넘김.
+
+        if (cached instanceof RouteVerificationResponse response) {
+            return response;
         }
-        if (java.time.Instant.now(clock).isAfter(entry.expiresAt())) {
-            cache.remove(contentId);
-            return null;
-        }
-        return entry.response();
+
+        return null;
+    }   // Redis TTL이 끝난 key는 Redis가 알아서 제거하거나 조회 불가 상태로 만듦.
+
+    private void cacheResponse(Long contentId, RouteVerificationResponse response) {
+        java.time.Duration ttl = response.courses().isEmpty() ? THIN_TTL : RICH_TTL;
+        redisTemplate.opsForValue().set(routeKey(contentId), response, ttl);
     }
 
     public RouteVerificationResponse verify(Long contentId) {
@@ -132,8 +142,7 @@ public class RouteVerificationService {
                                                     .toList()))
                             .toList());
             if (response.usedPostCount() > 0) {
-                java.time.Duration ttl = response.courses().isEmpty() ? THIN_TTL : RICH_TTL;
-                cache.put(contentId, new CacheEntry(response, java.time.Instant.now(clock).plus(ttl)));
+                cacheResponse(contentId, response);
             }
             return response;
         } catch (RuntimeException e) {
