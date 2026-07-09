@@ -11,28 +11,37 @@ import com.sungjiduk.backend.spot.entity.PilgrimageSpot;
 import com.sungjiduk.backend.spot.infra.NearbyAttractionsProvider;
 import com.sungjiduk.backend.spot.infra.NearbyAttractionsProvider.Attraction;
 import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import com.sungjiduk.backend.spot.infra.StreetViewClient;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.data.redis.repositories.enabled=false")
 @Transactional
 @DisplayName("SpotService")
 class SpotServiceTest {
@@ -55,6 +64,25 @@ class SpotServiceTest {
 
     @MockitoBean
     private StreetViewClient streetViewClient;
+
+    @MockitoBean
+    private RedisTemplate<String, Object> redisTemplate;
+
+    private final Map<String, Object> redisStore = new ConcurrentHashMap<>();
+
+    @SuppressWarnings("unchecked")
+    @BeforeEach
+    void setUpRedisTemplate() {
+        redisStore.clear();
+        ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.get(anyString()))
+                .willAnswer(invocation -> redisStore.get(invocation.getArgument(0)));
+        doAnswer(invocation -> {
+            redisStore.put(invocation.getArgument(0), invocation.getArgument(1));
+            return null;
+        }).when(valueOperations).set(anyString(), any(), any(Duration.class));
+    }
 
     private PilgrimageSpot savedSpot() {
         Content content = contentRepository.save(Content.create("러브라이브!", "ANIME", "JP", "설명"));
