@@ -2,6 +2,7 @@ package com.sungjiduk.backend.auth.controller;
 
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
+import com.sungjiduk.backend.auth.dto.response.TokenResponse;
 import com.sungjiduk.backend.auth.dto.response.LoginResponse;
 import com.sungjiduk.backend.auth.dto.response.MeResponse;
 import com.sungjiduk.backend.auth.dto.response.UserSummaryResponse;
@@ -55,13 +56,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.login(request);
-        ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", response.refreshToken())
-            .httpOnly(true)
-            .secure(false)
-            .path("/")
-            .sameSite("Lax")
-            .maxAge(jwtProperties.getValidations().getRefresh() / 1000L)
-            .build();
+        ResponseCookie refreshTokenCookie = createRefreshTokenCookie(response.refreshToken());
 
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
@@ -91,5 +86,27 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse<MeResponse> me(@AuthenticationPrincipal CurrentUser currentUser) {
         return ApiResponse.ok(authService.me(currentUser.getId()));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(
+        @CookieValue(name = "refreshToken", required = false) String refreshToken
+    ) {
+        TokenResponse response = authService.refresh(refreshToken);
+        ResponseCookie refreshTokenCookie = createRefreshTokenCookie(response.refreshToken());
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
+            .body(ApiResponse.ok(response));
+    }
+
+    private ResponseCookie createRefreshTokenCookie(String refreshToken) {
+        return ResponseCookie.from("refreshToken", refreshToken)
+            .httpOnly(true)
+            .secure(false)
+            .path("/")
+            .sameSite("Lax")
+            .maxAge(jwtProperties.getValidations().getRefresh() / 1000L)
+            .build();
     }
 }

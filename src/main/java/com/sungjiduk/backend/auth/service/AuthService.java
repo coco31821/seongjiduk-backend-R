@@ -1,6 +1,7 @@
 package com.sungjiduk.backend.auth.service;
 
 import com.sungjiduk.backend.auth.dto.response.MeResponse;
+import com.sungjiduk.backend.auth.dto.response.TokenResponse;
 import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
@@ -10,6 +11,7 @@ import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.dto.KeyPair;
 import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.common.properties.JwtProperties;
+import com.sungjiduk.backend.common.security.domain.RefreshToken;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
 import com.sungjiduk.backend.common.security.service.TokenProvider;
 import com.sungjiduk.backend.common.util.PreConditions;
@@ -71,6 +73,32 @@ public class AuthService {
     @Transactional
     public void logout(String refreshToken) {
         refreshTokenRepository.deleteById(refreshToken);
+    }
+
+    @Transactional
+    public TokenResponse refresh(String refreshToken) {
+        PreConditions.validate(
+            refreshToken != null && !refreshToken.isBlank(),
+            ErrorCode.TOKEN_NOT_FOUND
+        );
+
+        tokenProvider.validate(refreshToken);
+        RefreshToken savedRefreshToken = refreshTokenRepository.findByRefreshTokenOrThrow(refreshToken);
+        String email = tokenProvider.parseJwt(refreshToken).email();
+
+        PreConditions.validate(
+            email.equals(savedRefreshToken.getEmail()),
+            ErrorCode.ABNORMAL_TOKEN
+        );
+
+        User user = userRepository.findByEmailOrThrow(email);
+        refreshTokenRepository.deleteById(refreshToken);
+        KeyPair keyPair = tokenProvider.issueKeyPair(user.getEmail(), user.getRole());
+
+        return new TokenResponse(
+            keyPair.accessToken(),
+            keyPair.refreshToken()
+        );
     }
 
     public MeResponse me(Long userId) {

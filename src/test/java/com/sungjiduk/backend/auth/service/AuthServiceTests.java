@@ -2,17 +2,22 @@ package com.sungjiduk.backend.auth.service;
 
 import com.sungjiduk.backend.auth.dto.request.LoginRequest;
 import com.sungjiduk.backend.auth.dto.request.SignupRequest;
+import com.sungjiduk.backend.auth.dto.response.TokenResponse;
 import com.sungjiduk.backend.auth.dto.response.LoginResponse;
 import com.sungjiduk.backend.auth.dto.response.MeResponse;
 import com.sungjiduk.backend.auth.dto.response.UserSummaryResponse;
 import com.sungjiduk.backend.common.constants.ErrorCode;
 import com.sungjiduk.backend.common.exception.BusinessException;
 import com.sungjiduk.backend.common.properties.JwtProperties;
+import com.sungjiduk.backend.common.security.domain.RefreshToken;
 import com.sungjiduk.backend.common.security.repository.RefreshTokenRepository;
+import com.sungjiduk.backend.common.security.service.TokenProvider;
 import com.sungjiduk.backend.user.entity.User;
 import com.sungjiduk.backend.user.entity.UserPreference;
 import com.sungjiduk.backend.user.repository.UserEmailRepository;
 import com.sungjiduk.backend.user.repository.UserPreferenceRepository;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,9 +27,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @Transactional
@@ -44,6 +55,9 @@ class AuthServiceTests {
 
     @Autowired
     JwtProperties jwtProperties;
+
+    @Autowired
+    TokenProvider tokenProvider;
 
     // 로그인 성공 시 TokenProvider가 RefreshToken을 Redis에 저장하려고 하므로, 테스트에서는 Redis Repository만 가짜로 대체한다.
     @MockitoBean
@@ -195,6 +209,97 @@ class AuthServiceTests {
     }
 
     @Nested
+    @DisplayName("refresh() 메서드")
+    class Refresh {
+
+        @Test
+        @DisplayName("유효한 RefreshToken이면 기존 토큰을 폐기하고 새 토큰 응답을 반환")
+        void refresh() {
+            // given
+            String email = "auth-service-refresh@gmail.com";
+            User savedUser = userEmailRepository.userSave(User.builder()
+                .email(email)
+                .passwordHash(passwordEncoder.encode("tjdwlejr1234"))
+                .nickname("재발급유저1")
+                .build());
+            String oldRefreshToken = tokenProvider.issueKeyPair(
+                savedUser.getEmail(),
+                savedUser.getRole()
+            ).refreshToken();
+            clearInvocations(refreshTokenRepository);
+
+            when(refreshTokenRepository.findByRefreshTokenOrThrow(oldRefreshToken))
+                .thenReturn(storedRefreshToken(oldRefreshToken, email));
+
+            // when
+            TokenResponse response = authService.refresh(oldRefreshToken);
+
+            // then
+            assertThat(response.accessToken()).isNotBlank();
+            assertThat(response.refreshToken()).isNotBlank();
+            assertThat(response.refreshToken()).isNotEqualTo(oldRefreshToken);
+            verify(refreshTokenRepository).deleteById(oldRefreshToken);
+            verify(refreshTokenRepository).save(argThat(savedRefreshToken ->
+                savedRefreshToken != null
+                    && savedRefreshToken.getRefreshToken().equals(response.refreshToken())
+                    && savedRefreshToken.getEmail().equals(email)
+                    && savedRefreshToken.getTtl().equals(jwtProperties.getValidations().getRefresh() / 1000L)
+            ));
+        }
+
+        @Test
+        @DisplayName("RefreshToken이 없으면 실패")
+        void 실패_refresh_token_missing() {
+            assertThatThrownBy(() -> authService.refresh(null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(ErrorCode.TOKEN_NOT_FOUND.getDescription());
+
+            verify(refreshTokenRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("만료된 RefreshToken이면 실패")
+        void 실패_token_expired() {
+            // given
+            String expiredRefreshToken = expiredRefreshToken("auth-expired-token@gmail.com");
+
+            // when & then
+            assertThatThrownBy(() -> authService.refresh(expiredRefreshToken))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(ErrorCode.EXPIRED_TOKEN.getDescription());
+
+            verify(refreshTokenRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("Redis에 RefreshToken이 없으면 실패")
+        void 실패_refresh_token_not_found_in_redis() {
+            // given
+            String email = "auth-missing-token-in-redis@gmail.com";
+            User savedUser = userEmailRepository.userSave(User.builder()
+                .email(email)
+                .passwordHash(passwordEncoder.encode("tjdwlejr1234"))
+                .nickname("재발급유저2")
+                .build());
+            String refreshToken = tokenProvider.issueKeyPair(
+                savedUser.getEmail(),
+                savedUser.getRole()
+            ).refreshToken();
+            clearInvocations(refreshTokenRepository);
+
+            when(refreshTokenRepository.findByRefreshTokenOrThrow(refreshToken))
+                .thenThrow(new BusinessException(ErrorCode.REFRESH_TOKEN_EXPIRED));
+
+            // when & then
+            assertThatThrownBy(() -> authService.refresh(refreshToken))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(ErrorCode.REFRESH_TOKEN_EXPIRED.getDescription());
+
+            verify(refreshTokenRepository, never()).deleteById(anyString());
+        }
+    }
+
+    @Nested
     @DisplayName("me() 메서드에서")
     class Me {
 
@@ -250,5 +355,26 @@ class AuthServiceTests {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining(ErrorCode.USER_NOT_FOUND.getDescription());
         }
+    }
+
+    private RefreshToken storedRefreshToken(String refreshToken, String email) {
+        return new RefreshToken(
+            refreshToken,
+            email,
+            jwtProperties.getValidations().getRefresh() / 1000L
+        );
+    }
+
+    private String expiredRefreshToken(String email) {
+        long now = System.currentTimeMillis();
+
+        return Jwts.builder()
+            .subject(jwtProperties.getPayload().getSubjectRefreshToken())
+            .id("expired-refresh-token")
+            .claim("email", email)
+            .issuedAt(new Date(now - 2000L))
+            .expiration(new Date(now - 1000L))
+            .signWith(Keys.hmacShaKeyFor(jwtProperties.getSecrets().getAppKey().getBytes()))
+            .compact();
     }
 }

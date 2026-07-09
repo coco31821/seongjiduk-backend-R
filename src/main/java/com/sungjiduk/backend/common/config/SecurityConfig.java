@@ -33,6 +33,7 @@ public class SecurityConfig {
                                 "/api/health",
                                 "/api/auth/signup",
                                 "/api/auth/login",
+                                "/api/auth/refresh",
                                 "/api/contents/**",
                                 "/api/spots/**",
                                 "/api/trips/generate",

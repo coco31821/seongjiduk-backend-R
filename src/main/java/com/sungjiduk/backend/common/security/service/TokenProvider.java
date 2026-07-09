@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +34,7 @@ public class TokenProvider {
     ){
         String issuedRefreshToken = Jwts.builder()
                 .subject(jwtProperties.getPayload().getSubjectRefreshToken())
+                .id(UUID.randomUUID().toString())
                 .claim("email", email)
                 .issuedAt(new Date())
                 .expiration(new Date(new Date().getTime() + jwtProperties.getValidations().getRefresh()))
@@ -58,6 +60,7 @@ public class TokenProvider {
     ){
         return Jwts.builder()
                 .subject(jwtProperties.getPayload().getSubjectAccessToken())
+                .id(UUID.randomUUID().toString())
                 .claim("role", role.name())
                 .issuer(jwtProperties.getPayload().getIssuer())
                 .claim("email", email)
