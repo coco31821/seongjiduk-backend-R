@@ -9,7 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
 
@@ -27,17 +28,18 @@ public class RouteCacheConfig {
     public RouteVerificationCache routeVerificationCache(
             RedisGuardProperties props,
             Clock clock,
-            ObjectProvider<RedisTemplate<String, Object>> redis) {
+            ObjectProvider<StringRedisTemplate> redis,
+            ObjectMapper objectMapper) {
         String mode = props.getMode();
         log.info("RouteVerificationCache mode={}", mode);
         if ("redis".equals(mode)) {
-            RedisTemplate<String, Object> template = redis.getIfAvailable();
+            StringRedisTemplate template = redis.getIfAvailable();
             if (template == null) {
                 throw new IllegalStateException(
-                        "seongjiduk.redis-guard.mode=redis 인데 RedisTemplate 빈이 없습니다. "
+                        "seongjiduk.redis-guard.mode=redis 인데 StringRedisTemplate 빈이 없습니다. "
                         + "Redis 설정을 확인하거나 mode=local/off로 두세요.");
             }
-            return new RedisRouteVerificationCache(template);
+            return new RedisRouteVerificationCache(template, objectMapper);
         }
         return new InMemoryRouteVerificationCache(clock);   // local · off
     }
