@@ -11,6 +11,10 @@ import com.sungjiduk.backend.spot.repository.PilgrimageSpotRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+
+import org.springframework.data.redis.core.RedisTemplate;
+
 @Service
 @Transactional(readOnly = true)
 public class SpotService {
@@ -18,36 +22,58 @@ public class SpotService {
     private final PilgrimageSpotRepository spotRepository;
     private final NearbyAttractionsProvider attractionsProvider;
     private final StreetViewClient streetViewClient;
+    // RedisTemplate 주입
+    private final RedisTemplate<String, Object> redisTemplate;
+    private static final Duration SPOT_CACHE_TTL = Duration.ofHours(6);
+
+    // Redis keys
+    private String streetViewKey(Long spotId) {
+        return "street-view:spot:" + spotId;
+    }
+
+    private String nearbyAttractionsKey(Long spotId) {
+        return "nearby-attractions:spot:" + spotId;
+    }
+
+    private String nearbyRestaurantsKey(Long spotId) {
+        return "nearby-restaurants:spot:" + spotId;
+    }
+
+    private String nearbyThemeKey(Long spotId, String theme) {
+        return "nearby-theme:spot:" + spotId + ":theme:" + theme;
+    }
 
     public SpotService(PilgrimageSpotRepository spotRepository, NearbyAttractionsProvider attractionsProvider,
-                       StreetViewClient streetViewClient) {
+                       StreetViewClient streetViewClient, RedisTemplate<String, Object> redisTemplate) {
         this.spotRepository = spotRepository;
         this.attractionsProvider = attractionsProvider;
         this.streetViewClient = streetViewClient;
+        this.redisTemplate = redisTemplate;
     }
 
-    /** 성지별 스트리트뷰 이미지 캐시 — 빈 결과는 캐시하지 않는다(키 추가 시 재시도). */
-    private final java.util.Map<Long, byte[]> streetViewCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** 여행 미리보기용 실거리뷰(장면컷 옆 실사) — 키는 서버에만 있고 이미지 바이트를 프록시한다. */
     public java.util.Optional<byte[]> streetView(Long spotId) {
-        byte[] cached = streetViewCache.get(spotId);
-        if (cached != null) {
-            return java.util.Optional.of(cached);
+        Object cached = redisTemplate.opsForValue().get(streetViewKey(spotId));
+        if (cached instanceof byte[] bytes) {
+            return java.util.Optional.of(bytes);
         }
+
         var spot = spotRepository.findById(spotId)
-                .orElseThrow(() -> new com.sungjiduk.backend.common.exception.BusinessException(
-                        com.sungjiduk.backend.common.constants.ErrorCode.SPOT_NOT_FOUND));
-        var image = streetViewClient.fetchImage(spot.getLat().doubleValue(), spot.getLng().doubleValue());
-        image.ifPresent(bytes -> streetViewCache.put(spotId, bytes));
+            .orElseThrow(() -> new com.sungjiduk.backend.common.exception.BusinessException(
+                com.sungjiduk.backend.common.constants.ErrorCode.SPOT_NOT_FOUND));
+
+        var image = streetViewClient.fetchImage(
+            spot.getLat().doubleValue(),
+            spot.getLng().doubleValue()
+        );
+
+        image.ifPresent(bytes ->
+            redisTemplate.opsForValue().set(streetViewKey(spotId), bytes, SPOT_CACHE_TTL)
+        );
+
         return image;
     }
-
-    /** 성지별 주변 관광지 캐시(외부 API 절약). 빈 결과는 캐시하지 않아 키 추가 시 재시도된다. */
-    private final java.util.Map<Long, NearbyAttractionsResponse> nearbyCache = new java.util.concurrent.ConcurrentHashMap<>();
-
-    /** 성지별 주변 맛집 캐시 — 관광지와 정렬 기준이 달라(별점순) 분리 보관. */
-    private final java.util.Map<Long, NearbyAttractionsResponse> restaurantCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** 테마 선택 레이어 — 테마 → (Places 타입, 기본 카테고리). 볼거리·먹을거리는 기존 전용 경로 재사용. */
     private static final java.util.Map<String, String[]> THEME_TYPES = java.util.Map.of(
@@ -55,8 +81,6 @@ public class SpotService {
             "SHOPPING", new String[]{"shopping_mall", "쇼핑"},
             "LODGING", new String[]{"lodging", "숙소"});
 
-    /** 성지×테마별 캐시 (키: spotId:THEME). 빈 결과는 캐시하지 않는다. */
-    private final java.util.Map<String, NearbyAttractionsResponse> themeCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private static final int MAX_ATTRACTIONS = 6;
 
@@ -77,10 +101,12 @@ public class SpotService {
             throw new com.sungjiduk.backend.common.exception.BusinessException(
                     com.sungjiduk.backend.common.constants.ErrorCode.VALIDATION_FAILED);
         }
-        String cacheKey = spotId + ":" + key;
-        NearbyAttractionsResponse cached = themeCache.get(cacheKey);
-        if (cached != null) {
-            return cached;
+        // key값
+        String cacheKey = nearbyThemeKey(spotId, key);
+        // 읽기
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached instanceof NearbyAttractionsResponse response) {
+            return response;
         }
         PilgrimageSpot spot = spotRepository.findByIdOrThrow(spotId);
         var places = attractionsProvider
@@ -96,17 +122,19 @@ public class SpotService {
                         a.name(), a.category(), a.rating(), a.ratingCount(), a.lat(), a.lng(), a.mapsUrl()))
                 .toList();
         NearbyAttractionsResponse response = new NearbyAttractionsResponse(spotId, places);
+        // 쓰기
         if (!places.isEmpty()) {
-            themeCache.put(cacheKey, response);
+            redisTemplate.opsForValue().set(cacheKey, response, SPOT_CACHE_TTL);
         }
         return response;
     }
 
     /** 주변 맛집 — 별점 높은 순(동점은 리뷰수), 여정 ⑤ 레이어. */
     public NearbyAttractionsResponse findNearbyRestaurants(Long spotId) {
-        NearbyAttractionsResponse cached = restaurantCache.get(spotId);
-        if (cached != null) {
-            return cached;
+        // 읽기
+        Object cached = redisTemplate.opsForValue().get(nearbyRestaurantsKey(spotId));
+        if (cached instanceof NearbyAttractionsResponse response) {
+            return response;
         }
         PilgrimageSpot spot = spotRepository.findByIdOrThrow(spotId);
         var restaurants = attractionsProvider
@@ -122,16 +150,17 @@ public class SpotService {
                         a.name(), a.category(), a.rating(), a.ratingCount(), a.lat(), a.lng(), a.mapsUrl()))
                 .toList();
         NearbyAttractionsResponse response = new NearbyAttractionsResponse(spotId, restaurants);
+        // 쓰기
         if (!restaurants.isEmpty()) {
-            restaurantCache.put(spotId, response);
+            redisTemplate.opsForValue().set(nearbyRestaurantsKey(spotId), response, SPOT_CACHE_TTL);
         }
         return response;
     }
 
     public NearbyAttractionsResponse findNearbyAttractions(Long spotId) {
-        NearbyAttractionsResponse cached = nearbyCache.get(spotId);
-        if (cached != null) {
-            return cached;
+        Object cached = redisTemplate.opsForValue().get(nearbyAttractionsKey(spotId));
+        if (cached instanceof NearbyAttractionsResponse response) {
+            return response;
         }
         PilgrimageSpot spot = spotRepository.findByIdOrThrow(spotId);
         var attractions = attractionsProvider
@@ -145,8 +174,9 @@ public class SpotService {
                         a.name(), a.category(), a.rating(), a.ratingCount(), a.lat(), a.lng(), a.mapsUrl()))
                 .toList();
         NearbyAttractionsResponse response = new NearbyAttractionsResponse(spotId, attractions);
+        // 쓰기부분 redis로 변경, 빈 결과는 캐시하지 않음.
         if (!attractions.isEmpty()) {
-            nearbyCache.put(spotId, response);
+            redisTemplate.opsForValue().set(nearbyAttractionsKey(spotId), response, SPOT_CACHE_TTL);
         }
         return response;
     }

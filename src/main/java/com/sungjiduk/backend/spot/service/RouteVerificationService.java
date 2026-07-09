@@ -6,6 +6,7 @@ import com.sungjiduk.backend.spot.dto.response.RouteVerificationResponse;
 import com.sungjiduk.backend.spot.infra.AiRouteVerifyClient;
 import com.sungjiduk.backend.spot.infra.BlogPostFetcher;
 import com.sungjiduk.backend.spot.infra.NaverBlogClient;
+import com.sungjiduk.backend.spot.service.cache.RouteVerificationCache;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +19,8 @@ public class RouteVerificationService {
     private final NaverBlogClient naverBlogClient;
     private final BlogPostFetcher postFetcher;
     private final AiRouteVerifyClient aiRouteVerifyClient;
-    private final java.time.Clock clock;
+    // 캐시 구현은 mode로 토글(redis 분산 / local·off 인메모리) — RouteCacheConfig 참조
+    private final RouteVerificationCache cache;
 
     public RouteVerificationService(
             ContentRepository contentRepository,
@@ -26,14 +28,14 @@ public class RouteVerificationService {
             NaverBlogClient naverBlogClient,
             BlogPostFetcher postFetcher,
             AiRouteVerifyClient aiRouteVerifyClient,
-            java.time.Clock clock
+            RouteVerificationCache cache
     ) {
         this.contentRepository = contentRepository;
         this.contentService = contentService;
         this.naverBlogClient = naverBlogClient;
         this.postFetcher = postFetcher;
         this.aiRouteVerifyClient = aiRouteVerifyClient;
-        this.clock = clock;
+        this.cache = cache;
     }
 
     private static final int SEARCH_COUNT = 50;
@@ -48,21 +50,13 @@ public class RouteVerificationService {
     private static final java.time.Duration RICH_TTL = java.time.Duration.ofHours(6);
     private static final java.time.Duration THIN_TTL = java.time.Duration.ofMinutes(30);
 
-    private record CacheEntry(RouteVerificationResponse response, java.time.Instant expiresAt) {
+    private RouteVerificationResponse cachedResponse(Long contentId) {
+        return cache.get(contentId);
     }
 
-    private final java.util.Map<Long, CacheEntry> cache = new java.util.concurrent.ConcurrentHashMap<>();
-
-    private RouteVerificationResponse cachedResponse(Long contentId) {
-        CacheEntry entry = cache.get(contentId);
-        if (entry == null) {
-            return null;
-        }
-        if (java.time.Instant.now(clock).isAfter(entry.expiresAt())) {
-            cache.remove(contentId);
-            return null;
-        }
-        return entry.response();
+    private void cacheResponse(Long contentId, RouteVerificationResponse response) {
+        java.time.Duration ttl = response.courses().isEmpty() ? THIN_TTL : RICH_TTL;
+        cache.put(contentId, response, ttl);
     }
 
     public RouteVerificationResponse verify(Long contentId) {
@@ -132,8 +126,7 @@ public class RouteVerificationService {
                                                     .toList()))
                             .toList());
             if (response.usedPostCount() > 0) {
-                java.time.Duration ttl = response.courses().isEmpty() ? THIN_TTL : RICH_TTL;
-                cache.put(contentId, new CacheEntry(response, java.time.Instant.now(clock).plus(ttl)));
+                cacheResponse(contentId, response);
             }
             return response;
         } catch (RuntimeException e) {
