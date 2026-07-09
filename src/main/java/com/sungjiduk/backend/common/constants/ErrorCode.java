@@ -48,6 +48,9 @@ public enum ErrorCode {
     MISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 미션을 찾을 수 없습니다."),
     MISSION_INACTIVE(HttpStatus.BAD_REQUEST, "비활성화된 미션은 완료할 수 없습니다."),
 
+    // ADMIN
+    INVALID_REQUEST_FORMAT(HttpStatus.BAD_REQUEST, "요청한 입력이 형식에 맞지 않습니다.")
+
     ;
     private final HttpStatus status;
     private final String description;
