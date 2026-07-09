@@ -9,7 +9,7 @@ public record StatsSeriesResponse(
 
     public record Point(
             String label,
-            long value
+            String value
     ) {
     }
 }

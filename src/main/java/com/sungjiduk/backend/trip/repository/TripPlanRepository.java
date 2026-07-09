@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.sungjiduk.backend.content.entity.Content;
 import com.sungjiduk.backend.trip.entity.TripPlan;
+import com.sungjiduk.backend.user.entity.User;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -29,4 +30,6 @@ public interface TripPlanRepository extends JpaRepository<TripPlan, Long> {
     );
 
     long countTripPlanByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+    Long countByUserIsNullAndCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+    Long countByUserIsNotNullAndCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 }
