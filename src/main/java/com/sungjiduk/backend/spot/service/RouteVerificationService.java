@@ -6,11 +6,9 @@ import com.sungjiduk.backend.spot.dto.response.RouteVerificationResponse;
 import com.sungjiduk.backend.spot.infra.AiRouteVerifyClient;
 import com.sungjiduk.backend.spot.infra.BlogPostFetcher;
 import com.sungjiduk.backend.spot.infra.NaverBlogClient;
+import com.sungjiduk.backend.spot.service.cache.RouteVerificationCache;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-// redis
-import org.springframework.data.redis.core.RedisTemplate;
 
 @Service
 @Transactional(readOnly = true)
@@ -21,8 +19,8 @@ public class RouteVerificationService {
     private final NaverBlogClient naverBlogClient;
     private final BlogPostFetcher postFetcher;
     private final AiRouteVerifyClient aiRouteVerifyClient;
-    private final java.time.Clock clock;
-    private final RedisTemplate<String, Object> redisTemplate;
+    // 캐시 구현은 mode로 토글(redis 분산 / local·off 인메모리) — RouteCacheConfig 참조
+    private final RouteVerificationCache cache;
 
     public RouteVerificationService(
             ContentRepository contentRepository,
@@ -30,16 +28,14 @@ public class RouteVerificationService {
             NaverBlogClient naverBlogClient,
             BlogPostFetcher postFetcher,
             AiRouteVerifyClient aiRouteVerifyClient,
-            java.time.Clock clock,
-            RedisTemplate<String, Object> redisTemplate
+            RouteVerificationCache cache
     ) {
         this.contentRepository = contentRepository;
         this.contentService = contentService;
         this.naverBlogClient = naverBlogClient;
         this.postFetcher = postFetcher;
         this.aiRouteVerifyClient = aiRouteVerifyClient;
-        this.clock = clock;
-        this.redisTemplate = redisTemplate;
+        this.cache = cache;
     }
 
     private static final int SEARCH_COUNT = 50;
@@ -54,25 +50,13 @@ public class RouteVerificationService {
     private static final java.time.Duration RICH_TTL = java.time.Duration.ofHours(6);
     private static final java.time.Duration THIN_TTL = java.time.Duration.ofMinutes(30);
 
-    private String routeKey(Long contentId) {
-        return "route-verification:content:" + contentId;
-    }   // example. Redis key 값 : route-verification:content:10
-
-
-
     private RouteVerificationResponse cachedResponse(Long contentId) {
-        Object cached = redisTemplate.opsForValue().get(routeKey(contentId));   // java 객체를 그대로 넘김.
-
-        if (cached instanceof RouteVerificationResponse response) {
-            return response;
-        }
-
-        return null;
-    }   // Redis TTL이 끝난 key는 Redis가 알아서 제거하거나 조회 불가 상태로 만듦.
+        return cache.get(contentId);
+    }
 
     private void cacheResponse(Long contentId, RouteVerificationResponse response) {
         java.time.Duration ttl = response.courses().isEmpty() ? THIN_TTL : RICH_TTL;
-        redisTemplate.opsForValue().set(routeKey(contentId), response, ttl);
+        cache.put(contentId, response, ttl);
     }
 
     public RouteVerificationResponse verify(Long contentId) {
