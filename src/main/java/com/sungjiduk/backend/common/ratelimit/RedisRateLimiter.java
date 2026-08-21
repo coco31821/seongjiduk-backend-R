@@ -10,18 +10,23 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * 분산 고정 윈도우 레이트리미터(Redis). 인스턴스를 넘어 <b>공유 한도</b>를 세므로,
+ * 분산 Token Bucket 레이트리미터(Redis). 인스턴스를 넘어 <b>공유 한도</b>를 세므로,
  * 수평 확장해도 외부 API 키가 429/과금을 넘지 않는다.
  *
- * <p>원자성: {@code INCR}+{@code PEXPIRE}+비교를 단일 Lua로 실행해 경합/누수(EXPIRE 유실)를 없앤다.
- * 윈도우 버킷은 벽시계로 만들며, 의미는 {@link InMemoryRateLimiter}(테스트된 레퍼런스)와 동일하다.
+ * <p>Redis TIME·HMSET·PEXPIRE를 하나의 Lua로 실행한다. JVM clock skew와 fixed-window 경계의
+ * 2배 burst를 피하면서, window 동안 limit개를 안정적으로 refill한다.
  */
 public class RedisRateLimiter implements RateLimiter {
 
     private static final DefaultRedisScript<Long> SCRIPT = new DefaultRedisScript<>(
-            "local c = redis.call('INCR', KEYS[1]) "
-            + "if c == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[2]) end "
-            + "if c <= tonumber(ARGV[1]) then return 1 else return 0 end",
+            "local t=redis.call('TIME'); local now=t[1]*1000+math.floor(t[2]/1000) "
+            + "local cap=tonumber(ARGV[1]); local period=tonumber(ARGV[2]) "
+            + "local v=redis.call('HMGET', KEYS[1], 'tokens', 'updated') "
+            + "local tokens=tonumber(v[1]) or cap; local updated=tonumber(v[2]) or now "
+            + "tokens=math.min(cap, tokens + ((now-updated)*cap/period)) "
+            + "local allowed=0; if tokens >= 1 then tokens=tokens-1; allowed=1 end "
+            + "redis.call('HSET', KEYS[1], 'tokens', tokens, 'updated', now) "
+            + "redis.call('PEXPIRE', KEYS[1], period*2) return allowed",
             Long.class);
 
     private static final Logger log = LoggerFactory.getLogger(RedisRateLimiter.class);
@@ -38,9 +43,10 @@ public class RedisRateLimiter implements RateLimiter {
             return false;
         }
         long windowMs = window.toMillis();
-        long now = System.currentTimeMillis();
-        long windowStart = now - (now % windowMs);
-        String bucketKey = "rl:" + key + ":" + windowStart;
+        if (windowMs <= 0) {
+            return false;
+        }
+        String bucketKey = "rl:v2:" + key;
         try {
             Long allowed = redis.execute(SCRIPT, List.of(bucketKey),
                     String.valueOf(limit), String.valueOf(windowMs));
