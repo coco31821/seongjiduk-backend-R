@@ -1,13 +1,13 @@
 package com.sungjiduk.backend.spot.infra;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import org.springframework.beans.factory.annotation.Value;
+import com.sungjiduk.backend.common.config.AiRestClientFactory;
+import com.sungjiduk.backend.common.ratelimit.AiConcurrencyGuard;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -19,23 +19,19 @@ public class AiRouteVerifyClient {
 
     private final RestClient restClient;
 
-    public AiRouteVerifyClient(@Value("${seongjiduk.ai-service.base-url:http://localhost:8000}") String baseUrl) {
-        HttpClient http1Client = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .build();
-        this.restClient = RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestFactory(new JdkClientHttpRequestFactory(http1Client))
-                .build();
+    private final AiConcurrencyGuard guard;
+    public AiRouteVerifyClient(AiRestClientFactory factory, AiConcurrencyGuard guard) {
+        this.restClient = factory.create(Duration.ofSeconds(90));
+        this.guard = guard;
     }
 
     public VerifyResult verify(VerifyRequest request) {
-        return restClient.post()
+        return guard.execute("route_verify", () -> restClient.post()
                 .uri("/ai/routes/verify")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .body(VerifyResult.class);
+                .body(VerifyResult.class));
     }
 
     public record VerifyRequest(Content content, List<RouteSpot> spots, List<BlogPost> posts) {

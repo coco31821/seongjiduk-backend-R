@@ -16,7 +16,6 @@ import java.time.Duration;
 import org.springframework.data.redis.core.RedisTemplate;
 
 @Service
-@Transactional(readOnly = true)
 public class SpotService {
 
     private final PilgrimageSpotRepository spotRepository;

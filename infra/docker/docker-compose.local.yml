@@ -53,6 +53,8 @@ services:
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-seongjiduk}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-seongjiduk-local-password}
       AI_SERVICE_BASE_URL: http://ai-service:8000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:

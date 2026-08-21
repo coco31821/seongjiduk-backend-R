@@ -1,19 +1,14 @@
 package com.sungjiduk.backend.trip.infra;
 
-import com.sungjiduk.backend.common.properties.RedisGuardProperties;
-import com.sungjiduk.backend.common.ratelimit.ConcurrencyLimiter;
-import com.sungjiduk.backend.common.ratelimit.ConcurrencyLimiter.Permit;
+import com.sungjiduk.backend.common.config.AiRestClientFactory;
+import com.sungjiduk.backend.common.ratelimit.AiConcurrencyGuard;
 import com.sungjiduk.backend.trip.infra.dto.AiTripLayout;
 import com.sungjiduk.backend.trip.infra.dto.AiTripRequest;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.net.http.HttpClient;
 import java.time.Duration;
-import java.util.Optional;
 
 /**
  * ai-service(LangGraph) 일정 생성 호출. 실패는 호출부(TripService)가 로컬 폴백으로 처리하므로
@@ -26,41 +21,23 @@ import java.util.Optional;
 @Component
 public class AiTripClient {
 
-    private static final String LIMIT_KEY = "ai:generate";
-
     private final RestClient restClient;
-    private final ConcurrencyLimiter concurrencyLimiter;
-    private final RedisGuardProperties guardProps;
 
     public AiTripClient(
-            @Value("${seongjiduk.ai-service.base-url:http://localhost:8000}") String baseUrl,
-            ConcurrencyLimiter concurrencyLimiter,
-            RedisGuardProperties guardProps
+            AiRestClientFactory factory,
+            AiConcurrencyGuard guard
     ) {
-        HttpClient http1Client = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .build();
-        this.restClient = RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestFactory(new JdkClientHttpRequestFactory(http1Client))
-                .build();
-        this.concurrencyLimiter = concurrencyLimiter;
-        this.guardProps = guardProps;
+        this.restClient = factory.create(Duration.ofSeconds(45));
+        this.guard = guard;
     }
+    private final AiConcurrencyGuard guard;
 
     public AiTripLayout generate(AiTripRequest request) {
-        Optional<Permit> permit = concurrencyLimiter.acquire(
-                LIMIT_KEY, guardProps.getAiMaxConcurrent(), Duration.ofMillis(guardProps.getAiWaitMs()));
-        if (permit.isEmpty()) {
-            throw new AiBusyException("AI 생성 동시성 한도 초과(대기 " + guardProps.getAiWaitMs() + "ms 초과)");
-        }
-        try (Permit p = permit.get()) {
-            return restClient.post()
+        return guard.execute("trip", () -> restClient.post()
                     .uri("/ai/trips/generate")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(request)
                     .retrieve()
-                    .body(AiTripLayout.class);
-        }
+                    .body(AiTripLayout.class));
     }
 }

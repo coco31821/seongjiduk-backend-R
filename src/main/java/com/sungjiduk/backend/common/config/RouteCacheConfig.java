@@ -30,7 +30,7 @@ public class RouteCacheConfig {
             Clock clock,
             ObjectProvider<StringRedisTemplate> redis,
             ObjectMapper objectMapper) {
-        String mode = props.getMode();
+        String mode = props.getCacheMode().name().toLowerCase();
         log.info("RouteVerificationCache mode={}", mode);
         if ("redis".equals(mode)) {
             StringRedisTemplate template = redis.getIfAvailable();
@@ -41,6 +41,9 @@ public class RouteCacheConfig {
             }
             return new RedisRouteVerificationCache(template, objectMapper);
         }
-        return new InMemoryRouteVerificationCache(clock);   // local · off
+        if ("off".equals(mode)) {
+            return new com.sungjiduk.backend.spot.service.cache.NoOpRouteVerificationCache();
+        }
+        return new InMemoryRouteVerificationCache(clock);
     }
 }
