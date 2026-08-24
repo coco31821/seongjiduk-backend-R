@@ -14,15 +14,18 @@ import java.util.Optional;
 @Component
 public class StreetViewClient {
 
-    private static final String METADATA_URL = "https://maps.googleapis.com/maps/api/streetview/metadata";
-    private static final String IMAGE_URL = "https://maps.googleapis.com/maps/api/streetview";
     private static final String SIZE = "640x400";
 
     private final RestClient restClient = RestClient.builder().build();
     private final String apiKey;
+    private final String metadataUrl;
+    private final String imageUrl;
 
-    public StreetViewClient(@Value("${seongjiduk.geocoding.google.api-key:}") String apiKey) {
+    public StreetViewClient(@Value("${seongjiduk.geocoding.google.api-key:}") String apiKey,
+                            @Value("${seongjiduk.geocoding.google.maps-base-url:https://maps.googleapis.com}") String mapsBaseUrl) {
         this.apiKey = apiKey;
+        this.metadataUrl = mapsBaseUrl + "/maps/api/streetview/metadata";
+        this.imageUrl = mapsBaseUrl + "/maps/api/streetview";
     }
 
     public boolean enabled() {
@@ -36,7 +39,7 @@ public class StreetViewClient {
         }
         try {
             Metadata metadata = restClient.get()
-                    .uri(METADATA_URL + "?location={loc}&source=outdoor&key={key}",
+                    .uri(metadataUrl + "?location={loc}&source=outdoor&key={key}",
                             lat + "," + lng, apiKey)
                     .retrieve()
                     .body(Metadata.class);
@@ -44,7 +47,7 @@ public class StreetViewClient {
                 return Optional.empty();
             }
             byte[] image = restClient.get()
-                    .uri(IMAGE_URL + "?size={size}&location={loc}&source=outdoor&key={key}",
+                    .uri(imageUrl + "?size={size}&location={loc}&source=outdoor&key={key}",
                             SIZE, lat + "," + lng, apiKey)
                     .retrieve()
                     .body(byte[].class);

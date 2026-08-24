@@ -33,12 +33,13 @@ public class NaverBlogClient {
     public NaverBlogClient(
             @Value("${seongjiduk.naver.client-id:}") String clientId,
             @Value("${seongjiduk.naver.client-secret:}") String clientSecret,
+            @Value("${seongjiduk.naver.base-url:https://openapi.naver.com}") String baseUrl,
             RateLimiter rateLimiter,
             RedisGuardProperties guardProps
     ) {
         this.clientId = clientId;
         this.clientSecret = clientSecret;
-        this.restClient = RestClient.builder().baseUrl("https://openapi.naver.com").build();
+        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
         this.rateLimiter = rateLimiter;
         this.guardProps = guardProps;
     }
