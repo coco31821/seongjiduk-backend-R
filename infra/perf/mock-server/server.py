@@ -15,7 +15,9 @@ class Handler(BaseHTTPRequestHandler):
   time.sleep(EXTERNAL_DELAY_MS/1000)
   with lock: calls[self.path.split("?")[0]]=calls.get(self.path.split("?")[0],0)+1
   if "/geocode/" in self.path: return self.respond(200,{"status":"OK","results":[{"formatted_address":"Mock Tokyo","address_components":[{"long_name":"Tokyo","types":["locality"]}],"geometry":{"location":{"lat":35.681,"lng":139.767}}}]})
-  if "/v1/search/blog.json" in self.path: return self.respond(200,{"items":[{"title":"Mock route","link":"http://mock/posts/1","postdate":"20260101"}]})
+  if "/v1/search/blog.json" in self.path: return self.respond(200,{"items":[{"title":"Mock route","link":"http://mock-api:8081/posts/1","postdate":"20260101"}]})
+  if self.path.startswith("/posts/"):
+   raw=b"<html><body>Mock pilgrimage route from spot A to spot B</body></html>"; self.send_response(200); self.send_header("Content-Type","text/html"); self.send_header("Content-Length",str(len(raw))); self.end_headers(); return self.wfile.write(raw)
   return self.respond(200,{"status":"OK"})
  def do_POST(self):
   global inflight,max_inflight,calls

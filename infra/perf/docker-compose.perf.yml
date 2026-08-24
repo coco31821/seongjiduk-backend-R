@@ -30,6 +30,7 @@ services:
       CACHE_MODE: redis
       RATE_LIMIT_MODE: redis
       CONCURRENCY_LIMIT_MODE: redis
+      REDIS_GUARD_MODE: redis
     depends_on: { mysql: { condition: service_healthy }, redis: { condition: service_started }, mock-api: { condition: service_started } }
   backend-b: { <<: *backend }
   nginx:
