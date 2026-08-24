@@ -22,6 +22,11 @@ class Handler(BaseHTTPRequestHandler):
  def do_POST(self):
   global inflight,max_inflight,calls
   self.rfile.read(int(self.headers.get("Content-Length","0"))); path=self.path
+  if path == "/debug/reset":
+   with lock:
+    calls = {}
+    max_inflight = inflight
+   return self.respond(200,{"calls":calls,"inflight":inflight,"max_inflight":max_inflight})
   with lock: calls[path]=calls.get(path,0)+1
   if path.startswith("/ai/"):
    with lock:

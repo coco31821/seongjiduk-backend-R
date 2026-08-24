@@ -12,6 +12,7 @@ services:
     environment: { REDIS_ADDR: redis://redis:6379 }
   mock-api:
     build: ./mock-server
+    ports: ["8081:8081"]
     environment: { AI_DELAY_MS: 1000, EXTERNAL_DELAY_MS: 200, AI_MAX_INFLIGHT: 4 }
   backend-a: &backend
     build: ../..
