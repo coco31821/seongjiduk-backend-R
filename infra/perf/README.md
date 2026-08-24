@@ -12,6 +12,8 @@ docker compose -f infra/perf/docker-compose.perf.yml up --build
 
 mock API는 외부 호출 200ms, AI 1,000ms, AI max in-flight 4로 고정한다. 각 실험 전 DB seed를 동일하게 준비하고 route verification Redis key와 mock 호출 카운터를 초기화한다.
 
+성능 환경의 backend는 `SPRING_JPA_HIBERNATE_DDL_AUTO=update`로 기동한다. 현재 Flyway migration이 모든 JPA table을 아직 포괄하지 않아 `validate`는 사용할 수 없지만, `create-drop`과 달리 replica 재기동이나 종료가 공유 MySQL schema를 삭제하지 않는다. 전체 Flyway 전환 후에는 `validate`로 바꾼다.
+
 이 PR의 기준선은 기존 `REDIS_GUARD_MODE=redis` 설정을 그대로 사용한다. `CACHE_MODE=off|local|redis`를 이용한 캐시 구현 대조는 아직 연결되지 않았으며, 다음 Route cache mode 리팩토링 PR에서 추가한다. 현재 `CACHE_MODE` 환경변수는 k6 결과 태그 용도일 뿐 캐시 동작을 바꾸지 않는다.
 
 compose 기동 뒤 아래 SQL을 넣으면 `CONTENT_ID=1`로 실행할 수 있다.

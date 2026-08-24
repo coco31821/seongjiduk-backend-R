@@ -17,11 +17,12 @@ class Handler(BaseHTTPRequestHandler):
   if "/geocode/" in self.path: return self.respond(200,{"status":"OK","results":[{"formatted_address":"Mock Tokyo","address_components":[{"long_name":"Tokyo","types":["locality"]}],"geometry":{"location":{"lat":35.681,"lng":139.767}}}]})
   if "/v1/search/blog.json" in self.path: return self.respond(200,{"items":[{"title":"Mock route","link":"http://mock-api:8081/posts/1","postdate":"20260101"}]})
   if self.path.startswith("/posts/"):
-   raw=b"<html><body>Mock pilgrimage route from spot A to spot B</body></html>"; self.send_response(200); self.send_header("Content-Type","text/html"); self.send_header("Content-Length",str(len(raw))); self.end_headers(); return self.wfile.write(raw)
+   text = "Mock Shrine A에서 Mock Shrine B까지 이동한 성지순례 동선과 방문 순서를 기록한 후기입니다. " * 12
+   raw=("<html><body>"+text+"</body></html>").encode(); self.send_response(200); self.send_header("Content-Type","text/html"); self.send_header("Content-Length",str(len(raw))); self.end_headers(); return self.wfile.write(raw)
   return self.respond(200,{"status":"OK"})
  def do_POST(self):
   global inflight,max_inflight,calls
-  self.rfile.read(int(self.headers.get("Content-Length","0"))); path=self.path
+  raw_body=self.rfile.read(int(self.headers.get("Content-Length","0"))); path=self.path
   if path == "/debug/reset":
    with lock:
     calls = {}
@@ -35,8 +36,11 @@ class Handler(BaseHTTPRequestHandler):
    try:
     time.sleep(AI_DELAY_MS/1000)
     if path=="/ai/trips/generate": return self.respond(200,{"title":"Mock trip","days":[],"shareText":"mock","provider":"perf-stub"})
-    if path=="/ai/spots/describe": return self.respond(200,{"contentId":1,"provider":"perf-stub","descriptions":[]})
-    return self.respond(200,{"provider":"perf-stub","postCount":1,"usedPostCount":1,"spotMentions":[],"verifiedPairs":[],"courses":[],"spotTips":[]})
+    if path=="/ai/spots/describe":
+     request=json.loads(raw_body or b"{}")
+     descriptions=[{"spotId":spot["id"],"sceneDescription":"Mock scene","specialPoint":"Mock point","koreanName":spot["name"],"recommendedMinutes":45,"missions":[]} for spot in request.get("spots",[])]
+     return self.respond(200,{"contentId":1,"provider":"perf-stub","descriptions":descriptions})
+    return self.respond(200,{"provider":"perf-stub","postCount":1,"usedPostCount":1,"spotMentions":[{"spotId":1,"count":1,"postIndexes":[0]},{"spotId":2,"count":1,"postIndexes":[0]}],"verifiedPairs":[{"fromSpotId":1,"toSpotId":2,"count":1}],"courses":[{"rank":1,"spotIds":[1,2],"supportCount":1,"postIndexes":[0]}],"spotTips":[]})
    finally:
     with lock: inflight-=1
   time.sleep(EXTERNAL_DELAY_MS/1000)

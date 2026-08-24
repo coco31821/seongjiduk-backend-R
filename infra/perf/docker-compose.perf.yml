@@ -20,6 +20,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/seongjiduk?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: seongjiduk
       SPRING_DATASOURCE_PASSWORD: seongjiduk-perf-password
+      # Flyway migration coverage is not complete yet. update prevents create-drop schema deletion
+      # while allowing this isolated performance database to create remaining JPA tables.
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       REDIS_HOST: redis
       AI_SERVICE_BASE_URL: http://mock-api:8081
       GOOGLE_PLACES_BASE_URL: http://mock-api:8081
