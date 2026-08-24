@@ -12,6 +12,12 @@ docker compose -f infra/perf/docker-compose.perf.yml up --build
 
 mock API는 외부 호출 200ms, AI 1,000ms, AI max in-flight 4로 고정한다. 각 실험 전 DB seed를 동일하게 준비하고 Redis에는 실험 prefix만 삭제한다. `CACHE_MODE`, `RATE_LIMIT_MODE`, `CONCURRENCY_LIMIT_MODE`를 `off`, `local`, `redis`로 바꿔 대조한다.
 
+compose 기동 뒤 아래 SQL을 넣으면 `CONTENT_ID=1`로 실행할 수 있다.
+
+```bash
+Get-Content infra/perf/seed-perf.sql | docker compose -f infra/perf/docker-compose.perf.yml exec -T mysql mysql -useongjiduk -pseongjiduk-perf-password seongjiduk
+```
+
 ## 2단계: 기준선 실행
 
 초기 데이터는 compose 기동 후 기존 데모 seed를 실행해 준비한다. Anitabi API를 호출하지 않으려면 `scripts/seed/*.sql`의 정적 작품·spot 데이터를 MySQL에 넣고 `CONTENT_ID`를 확인한다.
