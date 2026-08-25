@@ -38,12 +38,13 @@ public class GooglePlacesProvider implements NearbyAttractionsProvider {
 
     public GooglePlacesProvider(
             @Value("${seongjiduk.geocoding.google.api-key:}") String apiKey,
+            @Value("${seongjiduk.geocoding.google.places-base-url:https://places.googleapis.com}") String baseUrl,
             RateLimiter rateLimiter,
             RedisGuardProperties guardProps
     ) {
         this.apiKey = apiKey;
         this.restClient = RestClient.builder()
-                .baseUrl("https://places.googleapis.com")
+                .baseUrl(baseUrl)
                 .build();
         this.rateLimiter = rateLimiter;
         this.guardProps = guardProps;

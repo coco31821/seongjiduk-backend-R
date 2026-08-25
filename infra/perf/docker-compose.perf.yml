@@ -1,0 +1,52 @@
+name: seongjiduk-perf
+services:
+  mysql:
+    image: mysql:8.4
+    environment: { MYSQL_DATABASE: seongjiduk, MYSQL_USER: seongjiduk, MYSQL_PASSWORD: seongjiduk-perf-password, MYSQL_ROOT_PASSWORD: root-perf-password }
+    healthcheck: { test: [CMD-SHELL, "mysqladmin ping -h 127.0.0.1 -u root -proot-perf-password --silent"], interval: 5s, timeout: 3s, retries: 20 }
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --maxmemory, 256mb, --maxmemory-policy, allkeys-lfu]
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.68.0
+    environment: { REDIS_ADDR: redis://redis:6379 }
+  mock-api:
+    build: ./mock-server
+    ports: ["8081:8081"]
+    environment: { AI_DELAY_MS: 1000, EXTERNAL_DELAY_MS: 200, AI_MAX_INFLIGHT: 4 }
+  backend-a: &backend
+    build: ../..
+    environment: &backend-env
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/seongjiduk?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: seongjiduk
+      SPRING_DATASOURCE_PASSWORD: seongjiduk-perf-password
+      # Flyway migration coverage is not complete yet. update prevents create-drop schema deletion
+      # while allowing this isolated performance database to create remaining JPA tables.
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      REDIS_HOST: redis
+      AI_SERVICE_BASE_URL: http://mock-api:8081
+      GOOGLE_PLACES_BASE_URL: http://mock-api:8081
+      GOOGLE_MAPS_BASE_URL: http://mock-api:8081
+      NAVER_BASE_URL: http://mock-api:8081
+      GOOGLE_MAPS_API_KEY: perf-dummy-key
+      NAVER_CLIENT_ID: perf-dummy-id
+      NAVER_CLIENT_SECRET: perf-dummy-secret
+      CACHE_MODE: redis
+      RATE_LIMIT_MODE: redis
+      CONCURRENCY_LIMIT_MODE: redis
+      REDIS_GUARD_MODE: redis
+    depends_on: { mysql: { condition: service_healthy }, redis: { condition: service_started }, mock-api: { condition: service_started } }
+  backend-b: { <<: *backend }
+  nginx:
+    image: nginx:1.27-alpine
+    ports: ["8080:8080"]
+    volumes: ["./nginx.conf:/etc/nginx/nginx.conf:ro"]
+    depends_on: [backend-a, backend-b]
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    ports: ["9090:9090"]
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+  grafana:
+    image: grafana/grafana:12.1.0
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
