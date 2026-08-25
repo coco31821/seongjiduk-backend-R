@@ -37,3 +37,7 @@ coverage/
 application-secret.yml
 application-local.yml
 docker-data/
+
+# Performance runs are local evidence; keep only the curated baseline fixture in Git.
+infra/perf/results/*
+!infra/perf/results/baseline-route-r5.json

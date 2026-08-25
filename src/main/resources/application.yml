@@ -7,7 +7,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:seongjiduk-local-password}
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:create-drop}
     open-in-view: false
     properties:
       hibernate:
@@ -46,9 +46,12 @@ seongjiduk:
   geocoding:
     google:
       api-key: ${GOOGLE_MAPS_API_KEY:}   # 비면 지오코딩 생략, 작품 city로 fallback
+      places-base-url: ${GOOGLE_PLACES_BASE_URL:https://places.googleapis.com}
+      maps-base-url: ${GOOGLE_MAPS_BASE_URL:https://maps.googleapis.com}
   naver:
     client-id: ${NAVER_CLIENT_ID:}       # 비면 블로그 동선 검증 비활성
     client-secret: ${NAVER_CLIENT_SECRET:}
+    base-url: ${NAVER_BASE_URL:https://openapi.naver.com}
   tosspayments:
     client-key: ${TOSS_CLIENT_KEY:}
     secret-key: ${TOSS_SECRET_KEY:}
