@@ -7,8 +7,9 @@ import com.sungjiduk.backend.spot.infra.AiRouteVerifyClient;
 import com.sungjiduk.backend.spot.infra.BlogPostFetcher;
 import com.sungjiduk.backend.spot.infra.NaverBlogClient;
 import com.sungjiduk.backend.spot.service.cache.RouteVerificationCache;
+import com.sungjiduk.backend.spot.service.cache.RouteVerificationSingleFlight;
+import com.sungjiduk.backend.common.ratelimit.ConcurrencyLimiter;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RouteVerificationService {
@@ -18,8 +19,9 @@ public class RouteVerificationService {
     private final NaverBlogClient naverBlogClient;
     private final BlogPostFetcher postFetcher;
     private final AiRouteVerifyClient aiRouteVerifyClient;
-    // 캐시 구현은 mode로 토글(redis 분산 / local·off 인메모리) — RouteCacheConfig 참조
+    // 캐시 구현은 mode로 토글(redis 분산 / local 인메모리 / off 무동작) — RouteCacheConfig 참조
     private final RouteVerificationCache cache;
+    private final RouteVerificationSingleFlight singleFlight;
 
     public RouteVerificationService(
             ContentRepository contentRepository,
@@ -27,7 +29,8 @@ public class RouteVerificationService {
             NaverBlogClient naverBlogClient,
             BlogPostFetcher postFetcher,
             AiRouteVerifyClient aiRouteVerifyClient,
-            RouteVerificationCache cache
+            RouteVerificationCache cache,
+            RouteVerificationSingleFlight singleFlight
     ) {
         this.contentRepository = contentRepository;
         this.contentService = contentService;
@@ -35,6 +38,7 @@ public class RouteVerificationService {
         this.postFetcher = postFetcher;
         this.aiRouteVerifyClient = aiRouteVerifyClient;
         this.cache = cache;
+        this.singleFlight = singleFlight;
     }
 
     private static final int SEARCH_COUNT = 50;
@@ -63,6 +67,19 @@ public class RouteVerificationService {
         if (cached != null) {
             return cached;
         }
+        var permit = singleFlight.acquire(contentId);
+        if (permit.isEmpty()) {
+            RouteVerificationResponse afterWait = cachedResponse(contentId);
+            return afterWait != null ? afterWait : verifyUncached(contentId);
+        }
+        try (ConcurrencyLimiter.Permit ignored = permit.get()) {
+            RouteVerificationResponse afterLock = cachedResponse(contentId);
+            return afterLock != null ? afterLock : verifyUncached(contentId);
+        }
+    }
+
+    /** Repository transactions finish before the external Naver/blog/AI calls below. */
+    private RouteVerificationResponse verifyUncached(Long contentId) {
         if (!naverBlogClient.enabled()) {
             return RouteVerificationResponse.unavailable(contentId);
         }

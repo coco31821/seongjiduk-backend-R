@@ -4,6 +4,10 @@ import com.sungjiduk.backend.common.properties.RedisGuardProperties;
 import com.sungjiduk.backend.spot.service.cache.InMemoryRouteVerificationCache;
 import com.sungjiduk.backend.spot.service.cache.RedisRouteVerificationCache;
 import com.sungjiduk.backend.spot.service.cache.RouteVerificationCache;
+import com.sungjiduk.backend.spot.service.cache.RouteVerificationSingleFlight;
+import com.sungjiduk.backend.common.ratelimit.InMemoryConcurrencyLimiter;
+import com.sungjiduk.backend.common.ratelimit.NoOpConcurrencyLimiter;
+import com.sungjiduk.backend.common.ratelimit.RedisConcurrencyLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -13,11 +17,13 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Clock;
+import java.time.Duration;
 
 /**
  * 검증 결과 캐시 구현을 §7 가드와 동일한 mode 규약으로 선택한다.
  * - redis(기본): 분산 캐시(운영) — 장애 시 fail-open
- * - local/off : 인메모리(단일 인스턴스) — Redis 없이 동작(로컬·테스트), Clock 기준 TTL
+ * - local : 인메모리(단일 인스턴스) — Redis 없이 동작(로컬·테스트), Clock 기준 TTL
+ * - off   : 무동작 캐시 — 성능 실험의 no-cache 대조군
  */
 @Configuration
 public class RouteCacheConfig {
@@ -45,5 +51,21 @@ public class RouteCacheConfig {
             return new com.sungjiduk.backend.spot.service.cache.NoOpRouteVerificationCache();
         }
         return new InMemoryRouteVerificationCache(clock);
+    }
+
+    @Bean
+    public RouteVerificationSingleFlight routeVerificationSingleFlight(
+            RedisGuardProperties props, ObjectProvider<StringRedisTemplate> redis) {
+        return switch (props.getCacheMode()) {
+            case OFF -> new RouteVerificationSingleFlight(new NoOpConcurrencyLimiter(), Duration.ZERO);
+            case LOCAL -> new RouteVerificationSingleFlight(new InMemoryConcurrencyLimiter(),
+                    Duration.ofMillis(props.getAiWaitMs()));
+            case REDIS -> {
+                StringRedisTemplate template = redis.getIfAvailable();
+                if (template == null) throw new IllegalStateException("cache-mode=redis 인데 StringRedisTemplate 빈이 없습니다.");
+                yield new RouteVerificationSingleFlight(new RedisConcurrencyLimiter(template,
+                        props.getAiLeaseMs(), props.getAiHeartbeatMs()), Duration.ofMillis(props.getAiWaitMs()));
+            }
+        };
     }
 }
