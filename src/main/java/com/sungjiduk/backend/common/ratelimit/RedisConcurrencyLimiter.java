@@ -104,8 +104,8 @@ public class RedisConcurrencyLimiter implements ConcurrencyLimiter {
     private boolean tryAcquireOnce(String zkey, int max, String token) {
         Long granted = redis.execute(ACQUIRE, List.of(zkey),
                 String.valueOf(max),
-                token,
                 String.valueOf(leaseMs),
+                token,
                 String.valueOf(leaseMs * 2));
         return granted != null && granted == 1L;
     }
