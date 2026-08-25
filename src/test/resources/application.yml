@@ -33,4 +33,6 @@ custom:
 
 seongjiduk:
   redis-guard:
-    mode: local   # 테스트는 Redis 없이 인메모리 가드로 동작
+    cache-mode: local
+    rate-limit-mode: local
+    concurrency-limit-mode: local

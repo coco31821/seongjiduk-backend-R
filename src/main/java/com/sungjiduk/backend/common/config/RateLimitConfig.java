@@ -32,19 +32,19 @@ public class RateLimitConfig {
     @Bean
     public ConcurrencyLimiter concurrencyLimiter(RedisGuardProperties props,
                                                  ObjectProvider<StringRedisTemplate> redis) {
-        String mode = props.getMode();
+        String mode = props.getConcurrencyLimitMode().name().toLowerCase();
         log.info("ConcurrencyLimiter mode={}", mode);
         return switch (mode) {
             case "off" -> new NoOpConcurrencyLimiter();
             case "local" -> new InMemoryConcurrencyLimiter();
-            default -> new RedisConcurrencyLimiter(requireRedis(redis, mode));
+            default -> new RedisConcurrencyLimiter(requireRedis(redis, mode), props.getAiLeaseMs(), props.getAiHeartbeatMs());
         };
     }
 
     @Bean
     public RateLimiter rateLimiter(RedisGuardProperties props,
                                    ObjectProvider<StringRedisTemplate> redis) {
-        String mode = props.getMode();
+        String mode = props.getRateLimitMode().name().toLowerCase();
         log.info("RateLimiter mode={}", mode);
         return switch (mode) {
             case "off" -> new NoOpRateLimiter();

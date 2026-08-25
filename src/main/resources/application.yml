@@ -7,7 +7,8 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:seongjiduk-local-password}
   jpa:
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:create-drop}
+      # 스키마 변경은 Flyway만 담당한다. 운영에서 create/drop이 실행되는 사고를 막는다.
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
@@ -18,6 +19,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2s}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -39,6 +42,10 @@ springdoc:
 seongjiduk:
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
+    connect-timeout: ${AI_CONNECT_TIMEOUT:1s}
+    trip-timeout: ${AI_TRIP_TIMEOUT:45s}
+    describe-timeout: ${AI_DESCRIBE_TIMEOUT:90s}
+    route-verify-timeout: ${AI_ROUTE_VERIFY_TIMEOUT:90s}
     # 임포트 직후 백그라운드 사전 생성에 쓸 모델 (비우면 ai-service 기본, 예: gpt-5.5)
     prewarm-model: ${AI_PREWARM_MODEL:}
   anitabi:
@@ -59,11 +66,16 @@ seongjiduk:
     # 어필리에이트 파트너 ID(공개값, 비밀 아님). 예약 딥링크에 붙어 수수료 트래킹. 비면 구글 폴백.
     marker: ${TRAVELPAYOUTS_MARKER:748641}
   redis-guard:
-    # 처리량 가드 구현 토글. redis(분산)=운영 기본, local(인메모리 단일), off(무제한=Redis 도입 전 대조군).
-    mode: ${REDIS_GUARD_MODE:redis}
+    # 독립 토글: off=대조군, local=단일 JVM, redis=분산.
+    # REDIS_GUARD_MODE는 기존 배포 환경의 하위 호환용 fallback이며 새 배포는 각 MODE를 사용한다.
+    cache-mode: ${CACHE_MODE:${REDIS_GUARD_MODE:redis}}
+    rate-limit-mode: ${RATE_LIMIT_MODE:${REDIS_GUARD_MODE:redis}}
+    concurrency-limit-mode: ${CONCURRENCY_LIMIT_MODE:${REDIS_GUARD_MODE:redis}}
     ai-max-concurrent: ${AI_MAX_CONCURRENT:4}   # ai-service 동시 호출 상한
     ai-wait-ms: ${AI_WAIT_MS:3000}              # 자리 대기 상한(초과 시 로컬 폴백)
     external-rpm: ${EXTERNAL_RPM:600}           # 네이버·구글 키별 분당 호출 상한
+    ai-lease-ms: ${AI_LEASE_MS:120000}
+    ai-heartbeat-ms: ${AI_HEARTBEAT_MS:20000}
 
 custom:
   jwt:

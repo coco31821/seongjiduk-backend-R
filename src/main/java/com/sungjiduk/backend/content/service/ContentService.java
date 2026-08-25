@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-@Transactional(readOnly = true)
 public class ContentService {
 
     private static final Logger log = LoggerFactory.getLogger(ContentService.class);
@@ -165,7 +164,6 @@ public class ContentService {
      * 임포트 직후 백그라운드 사전 생성용 — 설명 캐시를 미리 채운다.
      * single-flight 락을 공유하므로 사용자 요청과 겹쳐도 GPT는 1회만 호출된다.
      */
-    @Transactional(readOnly = true)
     public void prewarmDescriptions(Long contentId) {
         Content content = contentRepository.findByIdOrThrow(contentId);
         List<PilgrimageSpot> spots = spotRepository.findByContentOrderByIdAsc(content);

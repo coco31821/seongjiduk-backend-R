@@ -10,6 +10,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -22,30 +27,45 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class RedisConcurrencyLimiter implements ConcurrencyLimiter {
 
-    /** ARGV: [max, staleCutoffMs, nowMs, token, keyTtlMs] */
+    /** Redis TIME을 사용해 replica JVM 시계 오차를 제거한다. */
     private static final DefaultRedisScript<Long> ACQUIRE = new DefaultRedisScript<>(
-            "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2]) "
+            "local t=redis.call('TIME'); local now=t[1]*1000+math.floor(t[2]/1000) "
+            + "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now-tonumber(ARGV[2])) "
             + "local n = redis.call('ZCARD', KEYS[1]) "
             + "if n < tonumber(ARGV[1]) then "
-            + "  redis.call('ZADD', KEYS[1], ARGV[3], ARGV[4]) "
-            + "  redis.call('PEXPIRE', KEYS[1], ARGV[5]) "
+            + "  redis.call('ZADD', KEYS[1], now, ARGV[3]) "
+            + "  redis.call('PEXPIRE', KEYS[1], ARGV[4]) "
             + "  return 1 "
             + "else return 0 end",
+            Long.class);
+    private static final DefaultRedisScript<Long> RENEW = new DefaultRedisScript<>(
+            "if redis.call('ZSCORE', KEYS[1], ARGV[1]) == false then return 0 end "
+            + "local t=redis.call('TIME'); local now=t[1]*1000+math.floor(t[2]/1000) "
+            + "redis.call('ZADD', KEYS[1], 'XX', now, ARGV[1]); redis.call('PEXPIRE', KEYS[1], ARGV[2]); return 1",
             Long.class);
 
     private static final Logger log = LoggerFactory.getLogger(RedisConcurrencyLimiter.class);
 
-    /** 크래시한 홀더의 자리를 회수하기까지의 최대 점유 시간(안전망). */
-    private static final long STALE_TIMEOUT_MS = Duration.ofMinutes(2).toMillis();
-    private static final long RETRY_INTERVAL_MS = 50;
 
     /** fail-open 시 반환하는 무동작 permit(반납할 것 없음). */
     private static final Permit NO_OP = () -> { };
 
     private final StringRedisTemplate redis;
+    private final long leaseMs;
+    private final long heartbeatMs;
+    private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread thread = new Thread(r, "redis-permit-heartbeat");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public RedisConcurrencyLimiter(StringRedisTemplate redis) {
+        this(redis, 120_000, 20_000);
+    }
+    public RedisConcurrencyLimiter(StringRedisTemplate redis, long leaseMs, long heartbeatMs) {
         this.redis = redis;
+        this.leaseMs = leaseMs;
+        this.heartbeatMs = Math.min(heartbeatMs, Math.max(1_000, leaseMs / 2));
     }
 
     @Override
@@ -55,22 +75,24 @@ public class RedisConcurrencyLimiter implements ConcurrencyLimiter {
         }
         String zkey = "sem:" + key;
         String token = UUID.randomUUID().toString();
-        long deadline = System.currentTimeMillis() + Math.max(0, wait.toMillis());
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(Math.max(0, wait.toMillis()));
+        long delayMs = 20;
         try {
             do {
                 if (tryAcquireOnce(zkey, maxConcurrent, token)) {
                     return Optional.of(new RedisPermit(zkey, token));
                 }
-                if (System.currentTimeMillis() >= deadline) {
+                if (System.nanoTime() >= deadline) {
                     break;
                 }
                 try {
-                    Thread.sleep(RETRY_INTERVAL_MS);
+                    Thread.sleep(delayMs + ThreadLocalRandom.current().nextLong(0, Math.max(1, delayMs / 3)));
+                    delayMs = Math.min(250, delayMs * 2);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }
-            } while (System.currentTimeMillis() < deadline);
+            } while (System.nanoTime() < deadline);
             return Optional.empty();
         } catch (DataAccessException e) {
             // fail-open: Redis 장애가 AI 호출을 막지 않도록 통과(동시성 보호는 일시 상실).
@@ -80,13 +102,11 @@ public class RedisConcurrencyLimiter implements ConcurrencyLimiter {
     }
 
     private boolean tryAcquireOnce(String zkey, int max, String token) {
-        long now = System.currentTimeMillis();
         Long granted = redis.execute(ACQUIRE, List.of(zkey),
                 String.valueOf(max),
-                String.valueOf(now - STALE_TIMEOUT_MS),
-                String.valueOf(now),
+                String.valueOf(leaseMs),
                 token,
-                String.valueOf(STALE_TIMEOUT_MS * 2));
+                String.valueOf(leaseMs * 2));
         return granted != null && granted == 1L;
     }
 
@@ -95,16 +115,34 @@ public class RedisConcurrencyLimiter implements ConcurrencyLimiter {
         private final String zkey;
         private final String token;
         private final AtomicBoolean released = new AtomicBoolean(false);
+        private final ScheduledFuture<?> heartbeat;
 
         private RedisPermit(String zkey, String token) {
             this.zkey = zkey;
             this.token = token;
+            this.heartbeat = heartbeatExecutor.scheduleAtFixedRate(this::renew, heartbeatMs, heartbeatMs, TimeUnit.MILLISECONDS);
+        }
+
+        private void renew() {
+            if (released.get()) return;
+            try {
+                Long renewed = redis.execute(RENEW, List.of(zkey), token, String.valueOf(leaseMs * 2));
+                if (renewed == null || renewed == 0L) log.warn("Redis permit lease lost: {}", zkey);
+            } catch (DataAccessException e) {
+                log.warn("Redis permit heartbeat failed: {}", e.getMessage());
+            }
         }
 
         @Override
         public void close() {
             if (released.compareAndSet(false, true)) {
-                redis.opsForZSet().remove(zkey, token);
+                heartbeat.cancel(false);
+                try {
+                    redis.opsForZSet().remove(zkey, token);
+                } catch (DataAccessException e) {
+                    // release는 best-effort: 성공한 AI 응답을 Redis 장애로 실패시키지 않는다.
+                    log.warn("Redis permit release failed: {}", e.getMessage());
+                }
             }
         }
     }

@@ -38,6 +38,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-gpt-4o}
       AI_DESCRIBE_CHUNK: ${AI_DESCRIBE_CHUNK:-8}
+      AI_TIMEOUT: ${AI_TIMEOUT:-30}
     networks:
       - seongjiduk
 
